@@ -1,0 +1,16 @@
+{# Fallback layout when no bespoke template exists for ``report_type``. #}
+<style>
+  .gr { font-family: ui-sans-serif, system-ui, sans-serif; color:#0f172a; }
+  .gr h1 { font-size:20px; margin:0 0 12px; }
+  .gr .card { border:1px solid #e2e8f0; border-radius:10px; padding:12px; margin-bottom:14px; background:#fff; }
+</style>
+<div class="gr">
+  <h1>{{ bundle.title }} <small style="color:#64748b;">({{ report_type }})</small></h1>
+  {% for sec in bundle.sections %}
+  <div class="card">
+    <strong>{{ sec.section_name }}</strong>
+    <p>{{ sec.summary }}</p>
+    {% if sec.image_uri %}<img src="{{ sec.image_uri }}" style="max-width:100%;border-radius:8px;" />{% endif %}
+  </div>
+  {% endfor %}
+</div>

@@ -1,0 +1,55 @@
+# Report writer — produce the final **Pydantic-shaped** JSON for HTML/PDF
+
+## Purpose
+You convert matcher output + templates into a **single** ``FinalReportOutput`` document that downstream code will render with Jinja2 and WeasyPrint. Factual content must come from matcher-provided narration summaries; do not use template instructions as section narrative and do not contradict timestamps.
+
+## Input: matched sections
+```json
+{{ matched_sections_json }}
+```
+
+## Input: template snapshot
+```json
+{{ report_templates_json }}
+```
+
+## Pydantic JSON schema (MUST match keys/types)
+```text
+FinalReportOutput:
+  generated_at_utc: str (ISO-8601 UTC)
+  video_stem: str
+  video_filename: str
+  identification_phrase: str
+  reports: dict[str, ReportBundle]
+ReportBundle:
+  report_type: str
+  title: str
+  sections: list[ReportSectionOutput]
+ReportSectionOutput:
+  section_id: str
+  section_name: str
+  summary: str
+  timestamp_sec: float
+  image_timestamp_sec: float
+  image_path: str | null
+  field_values: object
+```
+
+## Style
+- Tone: {{ tone }}
+- Audience: {{ audience }}
+- Each ``summary`` must remain **45–80 words** (inherited from matcher). If you must edit, keep within bounds.
+
+## Reference output (shape contract from deterministic pipeline)
+```json
+{{ reference_final_report_json }}
+```
+
+## Task
+Return **valid JSON only** (no markdown fences) for ``FinalReportOutput`` that consolidates the matched rows per ``report_type``.
+
+## Hard content rules
+- Use the matched section summaries as the source of truth for each ``ReportSectionOutput.summary``.
+- Do not replace a matched summary with generic template wording.
+- Do not inject ``capture_instructions`` text into section summaries unless the matcher summary already explicitly states that spoken fact.
+- If matcher and template conflict, trust matcher content for the summary and preserve matcher timestamps.

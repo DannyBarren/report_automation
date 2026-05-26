@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Select reports{% endblock %}
+{% block header_title %}Choose your report{% endblock %}
+{% block header_subtitle %}Templates live in <code>reports/*.json</code> — one source of truth{% endblock %}
+
+{% block wrap_class %} wrap--wide{% endblock %}
+
+{% block head %}
+<style>
+    .quick-demo {
+        margin-bottom: 1.75rem;
+        padding: 1.25rem 1.35rem;
+        border-radius: 14px;
+        border: 1px solid var(--accent);
+        background: linear-gradient(135deg, rgba(61,139,253,0.14), rgba(38,84,163,0.12));
+        box-shadow: 0 8px 32px rgba(61,139,253,0.2);
+    }
+    .quick-demo h2 { margin: 0 0 0.45rem; font-size: 1.2rem; }
+    .quick-demo p { margin: 0 0 1rem; color: var(--muted); font-size: 0.95rem; max-width: 56ch; line-height: 1.45; }
+    .quick-demo .btn-lg {
+        font-size: 1.15rem !important;
+        padding: 0.95rem 1.75rem !important;
+        min-height: 3.15rem;
+        font-weight: 600;
+    }
+    .quick-demo .hint { margin: 0.75rem 0 0; font-size: 0.82rem; color: var(--muted); }
+    .how-grid {
+        display: grid; gap: 1rem;
+        grid-template-columns: 1fr;
+        margin: 1.5rem 0 2rem;
+    }
+    @media (min-width: 640px) { .how-grid { grid-template-columns: repeat(3, 1fr); } }
+    .how-card {
+        border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.1rem;
+        background: var(--surface); min-height: 100%;
+    }
+    .how-card h3 { margin: 0 0 0.5rem; font-size: 1rem; color: var(--text); }
+    .how-card p { margin: 0; font-size: 0.9rem; color: var(--muted); line-height: 1.5; }
+    .how-num {
+        display: inline-flex; width: 1.75rem; height: 1.75rem; border-radius: 999px;
+        align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem;
+        background: var(--accent-dim); color: #fff; margin-bottom: 0.5rem;
+    }
+    .pick-grid { display: grid; gap: 1rem; grid-template-columns: 1fr; }
+    @media (min-width: 560px) { .pick-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); } }
+    .pick-card {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1rem 1.1rem;
+        background: var(--surface);
+        cursor: pointer;
+        transition: border-color 0.15s, box-shadow 0.15s;
+        display: block;
+    }
+    .pick-card:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-dim); }
+    .pick-card input { position: absolute; opacity: 0; pointer-events: none; }
+    .pick-card.is-on { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(61,139,253,0.35); }
+    .pick-card h3 { margin: 0 0 0.35rem; font-size: 1.1rem; }
+    .pick-card .slug { font-size: 0.8rem; color: var(--muted); font-family: ui-monospace, monospace; }
+    .pick-card .desc { margin: 0.75rem 0 0; font-size: 0.92rem; color: var(--muted); line-height: 1.45; }
+    .pick-card .meta { margin-top: 0.6rem; font-size: 0.82rem; color: var(--muted); }
+    .pick-card.is-featured { border-color: #3b82f6; box-shadow: 0 0 0 1px rgba(59,130,246,0.35); }
+    .badge-rec {
+        font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+        color: #93c5fd; vertical-align: middle;
+    }
+    .actions-row { margin-top: 1.25rem; display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if not weasyprint_ready %}
+<div class="card" style="margin-bottom:1.25rem;border-color:#f59e0b;background:rgba(245,158,11,0.1);">
+  <p style="margin:0 0 0.65rem;font-weight:600;">PDF export needs a one-time setup on this PC</p>
+  <p style="margin:0 0 0.75rem;font-size:0.92rem;color:var(--muted);line-height:1.45;">
+    Recording and analysis still work. To generate PDF reports, run <code>run_demo.bat</code> or open the setup page.
+  </p>
+  <a class="btn btn-secondary" href="{{ url_for('setup_weasyprint_page') }}">Fix PDF setup</a>
+  <a class="btn btn-secondary" href="{{ url_for('setup_weasyprint_required') }}" style="margin-left:0.35rem;">Fix dependencies</a>
+</div>
+{% endif %}
+<section class="quick-demo" aria-labelledby="quick-demo-heading">
+    <h2 id="quick-demo-heading">Test with existing video</h2>
+    <p>
+        Run the full pipeline against a <strong>sample recording</strong> on the server — useful for smoke‑testing Deepgram, Anthropic, and PDF output without recording live.
+    </p>
+    <a class="btn btn-lg" href="{{ url_for('test_generate') }}">Test with existing video →</a>
+    <p class="hint">
+        Drop any <code>.mp4</code> or <code>.mov</code> into <code>uploads/</code> and this will auto-pick it
+        (prefers <code>.mp4</code>, then <code>.mov</code>). You can also call <code>/test_generate?filename=YOURFILE.MOV</code>.
+    </p>
+</section>
+
+<section aria-labelledby="how-heading">
+    <h2 id="how-heading" style="font-size:1.15rem;margin:0 0 0.5rem;">How this demo works</h2>
+    <p style="margin:0 0 1rem;color:var(--muted);max-width:72ch;font-size:0.95rem;line-height:1.5;">
+        <strong>jobdoc-demo</strong> turns a short guided recording into a structured PDF: templates in
+        <code>reports/*.json</code> define sections; you speak <strong>“Mark this.”</strong> at each stop;
+        the pipeline transcribes, aligns timestamps, extracts still frames, and renders a print-ready report.
+    </p>
+    <div class="how-grid">
+        <div class="how-card">
+            <div class="how-num">1</div>
+            <h3>Pick templates</h3>
+            <p>Choose one or more report types below. Everything downstream — recorder script, Crew payload, PDF layout — reads from the same JSON.</p>
+        </div>
+        <div class="how-card">
+            <div class="how-num">2</div>
+            <h3>Record on device</h3>
+            <p>Use your phone on Wi‑Fi/LAN (or ngrok). For each section: hold steady, say “Mark this.”, then describe what you’re showing.</p>
+        </div>
+        <div class="how-card">
+            <div class="how-num">3</div>
+            <h3>Generate PDF</h3>
+            <p>Upload lands on the preview page. Run the pipeline, watch progress, then download the PDF with frames and narratives.</p>
+        </div>
+    </div>
+</section>
+
+<form method="post" action="{{ url_for('start_recording') }}" id="pick-form">
+    <p style="margin-top:0;color:var(--muted);max-width:52ch;">
+        Select one or more report types. Each template defines sections, capture instructions,
+        and fields — the guided recorder and the PDF both follow this JSON.
+    </p>
+    {% if reports %}
+    <div class="pick-grid" role="group" aria-label="Report templates">
+        {% for r in reports %}
+        <label class="pick-card{% if r.featured %} is-featured{% endif %}">
+            <input type="checkbox" name="report_types" value="{{ r.report_type }}"{% if r.featured and loop.first %} checked{% endif %}>
+            <h3>{{ r.title }}{% if r.featured %} <span class="badge-rec">Recommended</span>{% endif %}</h3>
+            <div class="slug">{{ r.report_type }}</div>
+            <p class="desc">
+                {% if r.template_description %}
+                    {{ r.template_description }}
+                {% elif r.sections and r.sections[0] %}
+                    {{ r.sections[0].capture_instructions[:140] }}{% if r.sections[0].capture_instructions|length > 140 %}…{% endif %}
+                {% else %}
+                    Field sections defined in JSON — follow on-screen cues while recording.
+                {% endif %}
+            </p>
+            <div class="meta">{{ r.sections|length }} section(s)
+                {% if r.schema_version >= 2 %}· v{{ r.schema_version }} template{% endif %}
+            </div>
+        </label>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p>No report templates found. Add JSON files under <code>reports/</code>.</p>
+    {% endif %}
+    <div class="actions-row">
+        <button type="submit" class="btn" {% if not reports %}disabled{% endif %}>Continue to recording</button>
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">Refresh</a>
+    </div>
+</form>
+<script>
+(function () {
+    document.querySelectorAll('.pick-card').forEach(function (lab) {
+        var inp = lab.querySelector('input[type="checkbox"]');
+        if (!inp) return;
+        function sync() { lab.classList.toggle('is-on', inp.checked); }
+        inp.addEventListener('change', sync);
+        sync();
+    });
+})();
+</script>
+{% endblock %}

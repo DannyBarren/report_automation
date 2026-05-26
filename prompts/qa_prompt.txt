@@ -1,0 +1,40 @@
+# QA — automated + human-style review of the final structured report
+
+## Final report (JSON)
+```json
+{{ final_report_json }}
+```
+
+## Template requirements (for cross-check)
+```json
+{{ report_templates_json }}
+```
+
+## Required QA output (Pydantic-style JSON)
+```text
+QAReport:
+  passed: bool
+  findings: list[QAFinding]
+  summary: str
+QAFinding:
+  code: str
+  message: str
+  severity: str  # "info" | "warning" | "error"
+```
+
+## Checks
+1. Every template section for selected report types appears in ``final_report.reports`` with a non-empty ``summary`` (45+ words).
+2. ``image_path`` may be null pre-render but timestamps must be monotonic and within plausible bounds.
+3. Flag contradictions between sections (e.g., “hazard” vs “all clear”) if both appear.
+4. Call out any **synthetic** section that was generated without a “{{ identification_phrase }}” hit (if metadata indicates missing cue).
+
+## Severity scale
+{{ severity_scale }}
+
+## Reference output (shape contract)
+```json
+{{ reference_qa_json }}
+```
+
+## Task
+Return **valid JSON only** (no markdown fences) for ``QAReport``.
