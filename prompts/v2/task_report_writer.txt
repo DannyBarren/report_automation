@@ -1,0 +1,55 @@
+{{ narration_policy }}
+
+Write `FinalReportOutput` JSON.
+
+Templates: {{ report_templates_json }}
+
+{{ template_ssot_policy }}
+
+Template writer rules (content_structure — follow strictly per section_id):
+{{ template_writer_rules_json }}
+
+Video: {{ video_stem }} / {{ video_filename }}
+
+Use transcript analysis + domain expert outputs from context.
+
+## field_values (mandatory)
+- For **each** output section, set `field_values` to include **every** key listed in that section's `fields` array from the rules above.
+- Use `field_specs` labels as guidance for tone and completeness.
+- Map narration into: `condition_summary` (overall), `specific_findings` (facts), `recommendations` (actions), `severity` (enum).
+- `severity` values: `no_issue`, `minor`, `moderate`, `major`, `safety_critical`, or `informational` — choose from narration; do not invent hazards.
+- If the technician said "no issues" / "satisfactory", use `no_issue` or `minor` and state that explicitly in summaries and fields.
+- Do not omit keys; do not add keys not in the template `fields` list for that section.
+
+## Organization
+- **Section-based:** One output section per template section, template order.
+- **Chronological cues:** Within each report_type, order sections by ascending `timestamp_sec` when timestamps are present; reference walk-through sequence only when supported by cue order.
+
+## Quality bar
+- Every `summary` ≥ **{{ min_summary_words }} words**.
+- Senior-inspector structure: scope → condition → significance → recommendations/limitations.
+- Integrate domain `recommended_actions` into closing sentences when relevant.
+
+## Few-shots — short narration → rich report summary
+
+### W1 — Brief egress clear (room / layout section)
+**Narration:** "egress clear."
+**OUT summary (~55 words):** "During documentation of the layout and egress path, the technician reported that the means of egress was clear at the time of the recording. No blocked doorways, stored materials, or obstructions were described in the narration for this area. This finding addresses egress accessibility for the surveyed zone based on verbal survey only. Recommend routine housekeeping to maintain clear paths and verifying door operation and exit signage during periodic facility reviews, as not all building areas may have been discussed on camera."
+
+**field_values example:** `egress_path_clear`: "yes (per narration)"
+
+### W2 — Brief no issues (conditions / hazards)
+**Narration:** "no issues observed here."
+**OUT summary (~58 words):** "For conditions and hazards in this zone, the technician stated that no issues were observed at the time of the recording. No damage, spills, blocked exits, or missing signage were described in the narration for this section. This represents a negative finding for narrated concerns in this area; it does not rule out concealed or unmentioned conditions elsewhere. No immediate corrective action was indicated based on the narration. Continue routine monitoring during normal occupancy."
+
+**field_values example:** `hazard_flags`: "none reported in narration" | `condition_notes`: "No deficiencies stated."
+
+### W3 — Brief drip under sink (plumbing / conditions)
+**Narration:** "drip under sink."
+**OUT summary (~62 words):** "The technician reported an active drip under a sink during the recording. The narration did not specify supply versus drain origin, duration, or visible cabinet damage, but ongoing moisture can damage finishes and promote mold if unresolved. This should be treated as an active plumbing concern pending confirmation on site. Recommend identifying the source, completing repair, drying affected materials, and re-documenting after correction. If audio limited, verify extent during follow-up visit."
+
+Low-confidence: keep disclaimer + still meet word minimum via scope/limitations/follow-up — not repetition.
+
+Avoid: "looks fine", invented measurements, or facts absent from narration/domain findings.
+
+Return JSON only.

@@ -1,0 +1,24 @@
+{
+  "report_type": "people_report",
+  "title": "People Report",
+  "sections": [
+    {
+      "id": "intro_subject",
+      "name": "Subject introduction",
+      "capture_instructions": "Record a clear head-and-shoulders shot. Ask the person to state their full name and role in one sentence.",
+      "required_fields": ["subject_name", "subject_role"]
+    },
+    {
+      "id": "work_area",
+      "name": "Primary work area",
+      "capture_instructions": "Pan slowly across the person's desk or primary workspace. Hold each angle for 2–3 seconds.",
+      "required_fields": ["workspace_description", "equipment_visible"]
+    },
+    {
+      "id": "safety_gear",
+      "name": "PPE and safety",
+      "capture_instructions": "Show any required PPE (vest, glasses, gloves) being worn or stored at the station.",
+      "required_fields": ["ppe_status", "notes"]
+    }
+  ]
+}

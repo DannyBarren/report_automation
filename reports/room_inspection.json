@@ -1,0 +1,107 @@
+{
+  "schema_version": 2,
+  "report_type": "room_inspection",
+  "title": "Facility Room Inspection",
+  "business_name": "JobDoc Demo Facilities",
+  "logo_url": null,
+  "pdf_styling": {
+    "primary_color": "#0f766e",
+    "secondary_color": "#64748b",
+    "accent_color": "#14b8a6",
+    "font_family": "Helvetica, Arial, sans-serif",
+    "header_style": "bold",
+    "photo_grid": "2-column with caption below",
+    "include_timestamps": true,
+    "include_narration_in_caption": true,
+    "page_footer": "Confidential • {business_name} • Page {page} of {total}",
+    "page_header": "{report_title}",
+    "logo_placement": "header-left",
+    "show_summary_page": true,
+    "show_disclaimer": true,
+    "disclaimer_text": "This room inspection documents conditions observed during the recorded walk-through only.",
+    "recommendation_callout_style": "border-left accent",
+    "severity_colors": {
+      "informational": "#64748b",
+      "minor": "#ca8a04",
+      "moderate": "#ea580c",
+      "major": "#dc2626",
+      "safety_critical": "#7f1d1d"
+    }
+  },
+  "guidance": {
+    "intro_script": "Welcome. We will inspect this room in three steps. Move slowly and speak clearly after each Mark this cue.",
+    "outro_script": "Room inspection recording complete. Upload to generate your PDF report.",
+    "identification_phrase": "Mark this.",
+    "sections": [
+      {
+        "section_id": "room_identification",
+        "title": "Room identification",
+        "voice_prompt": "Film the room number or name plate, then a wide shot from the doorway. Say Mark this. and state the room ID and type.",
+        "on_screen_text": "Room ID — show plate, then doorway view",
+        "required": true,
+        "min_marks": 1,
+        "capture_order": 1,
+        "suggested_phrases": ["room", "suite", "office", "storage"]
+      },
+      {
+        "section_id": "layout_walkthrough",
+        "title": "Layout & egress",
+        "voice_prompt": "Walk the perimeter once. Say Mark this. and narrate layout zones and whether the egress path is clear.",
+        "on_screen_text": "Layout walkthrough — egress and zones",
+        "required": true,
+        "min_marks": 1,
+        "capture_order": 2,
+        "suggested_phrases": ["egress", "clear", "storage", "blocked"]
+      },
+      {
+        "section_id": "hazards_conditions",
+        "title": "Conditions & hazards",
+        "voice_prompt": "Zoom in on damage, spills, or signage issues. Say Mark this. If none, state no issues observed on camera.",
+        "on_screen_text": "Hazards & conditions — damage or all clear",
+        "required": true,
+        "min_marks": 1,
+        "capture_order": 3,
+        "suggested_phrases": ["spill", "damage", "blocked", "no issues"]
+      }
+    ]
+  },
+  "content_structure": {
+    "summary_page_title": "Room inspection summary",
+    "organization": "section_order",
+    "sections": [
+      {
+        "section_id": "room_identification",
+        "title": "Room identification",
+        "default_text": "Room identification was documented per technician narration.",
+        "fields": ["room_id", "room_type", "condition_summary"],
+        "writer_instructions": "Include room identifier and type when spoken. Neutral tone.",
+        "tone": "professional neutral",
+        "min_summary_words": 45,
+        "show_photo": true,
+        "show_severity_badge": false
+      },
+      {
+        "section_id": "layout_walkthrough",
+        "title": "Layout and egress",
+        "default_text": "Layout and egress path documented per narration.",
+        "fields": ["layout_summary", "egress_path_clear", "severity"],
+        "writer_instructions": "Describe layout and egress clearly; note any obstructions.",
+        "tone": "professional neutral",
+        "min_summary_words": 45,
+        "show_photo": true,
+        "show_severity_badge": true
+      },
+      {
+        "section_id": "hazards_conditions",
+        "title": "Conditions and hazards",
+        "default_text": "No issues observed unless noted in narration.",
+        "fields": ["condition_notes", "hazard_flags", "recommendations", "severity"],
+        "writer_instructions": "For negative findings use professional language. Include recommendations when hazards narrated.",
+        "tone": "professional neutral",
+        "min_summary_words": 45,
+        "show_photo": true,
+        "show_severity_badge": true
+      }
+    ]
+  }
+}

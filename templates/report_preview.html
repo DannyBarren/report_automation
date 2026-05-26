@@ -1,0 +1,734 @@
+{% extends "base.html" %}
+{% block title %}Report preview{% endblock %}
+{% block wrap_class %} wrap--wide{% endblock %}
+{% block header_title %}Report preview{% endblock %}
+{% block header_subtitle %}Pipeline · original recording · frames · PDF{% endblock %}
+
+{% block head %}
+<style>
+    /* Preview layout: tuned for LAN phones + projector laptops (tap targets, readable steps). */
+    .rp-hero-cta {
+        display: flex; flex-wrap: wrap; gap: 0.75rem;
+        align-items: stretch; margin: 1rem 0 1.25rem;
+    }
+    .rp-hero-cta .btn {
+        flex: 1 1 160px; text-align: center; justify-content: center;
+        min-height: 3rem; display: inline-flex; align-items: center;
+    }
+    .btn-danger-outline {
+        background: transparent; color: #fecaca;
+        border: 1px solid rgba(255,107,107,0.55);
+    }
+    .btn-danger-outline:hover { border-color: #ff6b6b; color: #fff; }
+
+    .video-card video {
+        width: 100%; max-height: min(52vh, 420px);
+        border-radius: 10px; background: #000;
+        border: 1px solid var(--border);
+    }
+    .video-card .vid-actions { margin-top: 0.65rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+    .status-strip {
+        display: flex; flex-wrap: wrap; gap: 0.75rem 1rem;
+        align-items: center; margin-bottom: 0.75rem;
+    }
+    .pill {
+        display: inline-block; padding: 0.35rem 0.75rem; border-radius: 999px;
+        font-size: 0.85rem; font-weight: 600;
+        background: var(--accent-dim); border: 1px solid var(--accent);
+    }
+    .pill.ok { border-color: #3ecf8e; background: rgba(62,207,142,0.15); }
+    .pill.bad { border-color: #ff6b6b; background: rgba(255,107,107,0.12); }
+    .pill.run { border-color: var(--accent); animation: pulse-soft 1.4s ease-in-out infinite; }
+    @keyframes pulse-soft {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.72; }
+    }
+    .mono { font-size: 0.85rem; word-break: break-all; }
+
+    .current-step-banner {
+        padding: 0.9rem 1rem; border-radius: 10px;
+        border: 1px solid var(--border);
+        background: rgba(61,139,253,0.08);
+        margin-bottom: 1rem;
+    }
+    .current-step-banner .step-label {
+        font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em;
+        color: var(--muted); margin: 0 0 0.25rem;
+    }
+    .current-step-banner .step-title { font-weight: 700; margin: 0 0 0.35rem; font-size: 1.05rem; }
+    .current-step-banner .step-desc { margin: 0; color: var(--muted); font-size: 0.92rem; line-height: 1.45; }
+
+    .prog-track {
+        height: 12px; border-radius: 999px;
+        background: #2a3545; overflow: hidden; margin: 0.5rem 0 1rem;
+    }
+    .prog-fill {
+        height: 100%; width: 0%;
+        background: linear-gradient(90deg, #2654a3, #3d8bfd);
+        border-radius: 999px;
+        transition: width 0.45s ease;
+    }
+
+    .steps {
+        display: grid; gap: 0.4rem; margin: 0 0 1rem; padding: 0; list-style: none;
+    }
+    .steps li {
+        display: grid;
+        grid-template-columns: 28px 1fr auto;
+        gap: 0.5rem 0.65rem;
+        align-items: start;
+        font-size: 0.92rem;
+        padding: 0.55rem 0.65rem;
+        border-radius: 8px;
+        background: rgba(26,35,50,0.65);
+        border: 1px solid transparent;
+    }
+    .steps li.pending { color: var(--muted); }
+    .steps li.running { border-color: var(--accent); background: rgba(61,139,253,0.1); }
+    .steps li.completed { color: #b8f5d4; }
+    .steps li.failed { border-color: #ff6b6b; color: #ffb4b4; }
+    .steps .ic { font-size: 1rem; line-height: 1.2; }
+    .steps .lbl { font-weight: 600; }
+    .steps .sub { grid-column: 2 / -1; font-size: 0.82rem; color: var(--muted); margin-top: -0.1rem; line-height: 1.35; }
+
+    .alert-soft {
+        padding: 0.85rem 1rem; border-radius: 10px;
+        background: rgba(255,107,107,0.1); border: 1px solid rgba(255,107,107,0.35);
+        color: #fecaca; font-size: 0.92rem; margin-bottom: 1rem;
+    }
+    .alert-info {
+        padding: 0.85rem 1rem; border-radius: 10px;
+        background: rgba(61,139,253,0.1); border: 1px solid rgba(61,139,253,0.35);
+        color: #dbeafe; font-size: 0.9rem; margin-bottom: 1rem;
+    }
+    .alert-info ul { margin: 0.5rem 0 0; padding-left: 1.2rem; }
+
+    .gallery-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+        gap: 0.85rem;
+        margin-top: 0.75rem;
+    }
+    .gallery-grid figure {
+        margin: 0; border-radius: 12px; overflow: hidden;
+        border: 1px solid var(--border); background: var(--surface);
+        display: flex; flex-direction: column;
+    }
+    .gallery-grid .thumb-wrap {
+        aspect-ratio: 4 / 3; background: #000; position: relative;
+    }
+    .gallery-grid img {
+        width: 100%; height: 100%; object-fit: cover; display: block;
+    }
+    .gallery-grid figcaption {
+        font-size: 0.78rem; color: var(--muted);
+        padding: 0.45rem 0.55rem 0.6rem; line-height: 1.35;
+        flex: 1;
+    }
+
+    .btn-pdf-lg {
+        font-size: 1.12rem !important; padding: 0.9rem 1.6rem !important;
+        min-height: 3.1rem;
+        box-shadow: 0 6px 24px rgba(61,139,253,0.35);
+    }
+    .btn-pdf-lg[disabled], .btn-pdf-lg.is-disabled {
+        opacity: 0.45; pointer-events: none;
+    }
+
+    .gen-area { position: relative; }
+    .gen-area.is-loading .btn { opacity: 0.55; pointer-events: none; }
+    .spinner {
+        display: none; width: 1rem; height: 1rem;
+        border: 2px solid rgba(255,255,255,0.25);
+        border-top-color: #fff; border-radius: 50%;
+        animation: spin 0.7s linear infinite; vertical-align: -2px; margin-right: 0.35rem;
+    }
+    .gen-area.is-loading .spinner { display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* “Mark this.” cue timeline — tap to seek the embedded video */
+    .mark-timeline {
+        margin-top: 0.75rem;
+        padding: 0.65rem 0.75rem;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: rgba(26,35,50,0.5);
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .mark-timeline-track {
+        display: flex; gap: 0.5rem; align-items: stretch;
+        min-width: min-content;
+    }
+    .mark-chip {
+        flex: 0 0 auto;
+        max-width: 200px;
+        text-align: left;
+        padding: 0.45rem 0.65rem;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text);
+        cursor: pointer;
+        font-size: 0.78rem;
+        line-height: 1.3;
+        transition: border-color 0.15s, background 0.15s;
+    }
+    .mark-chip:hover { border-color: var(--accent); background: rgba(61,139,253,0.12); }
+    .mark-chip .t { font-family: ui-monospace, monospace; font-weight: 700; color: var(--accent); font-size: 0.85rem; }
+    .mark-chip .lbl { display: block; margin-top: 0.2rem; color: var(--muted); }
+    .mark-chip.low-conf { border-color: #f59e0b; }
+
+    .review-card { margin-bottom: 1rem; }
+    .review-list { display: grid; gap: 0.65rem; margin: 0.75rem 0 0; }
+    .review-row {
+        padding: 0.75rem 0.85rem; border-radius: 10px;
+        border: 1px solid var(--border); background: rgba(26,35,50,0.55);
+    }
+    .review-row.flagged { border-color: rgba(245,158,11,0.55); }
+    .review-row h4 { margin: 0 0 0.35rem; font-size: 0.95rem; }
+    .review-flags { font-size: 0.75rem; color: #fcd34d; margin-bottom: 0.35rem; }
+    .review-preview { font-size: 0.82rem; color: var(--muted); margin: 0 0 0.5rem; line-height: 1.4; }
+    .review-row textarea {
+        width: 100%; min-height: 2.5rem; font-size: 0.88rem;
+        border-radius: 8px; border: 1px solid var(--border);
+        background: var(--bg); color: var(--text); padding: 0.45rem 0.55rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rp-wrap">
+    {# Top CTAs: visible immediately on phone — PDF + restart full flow #}
+    <div class="card" style="margin-bottom:1rem;">
+        <div class="rp-hero-cta">
+            <a class="btn btn-pdf-lg {% if not job_status.get('pdf_filename') %}is-disabled{% endif %}"
+               id="hero-pdf-btn"
+               href="{{ url_for('download_report', video_id=video_id) }}"
+               {% if not job_status.get('pdf_filename') %}aria-disabled="true" onclick="return false;"{% endif %}
+            >Download PDF</a>
+            <a class="btn btn-danger-outline" id="hero-restart-btn" href="{{ url_for('index') }}">Restart full demo</a>
+        </div>
+        <p style="margin:0;font-size:0.88rem;color:var(--muted);">
+            PDF unlocks after generation completes. Restart returns to template selection (same browser session).
+        </p>
+    </div>
+
+    <div class="card video-card">
+        <h2 style="margin:0 0 0.65rem;font-size:1.1rem;">Original recording</h2>
+        <video id="orig-video" controls playsinline preload="metadata"
+               poster=""
+               style="max-width:100%;">
+            <source src="{{ url_for('serve_uploaded_video', video_id=video_id) }}" />
+            Your browser does not support embedded video — open the file from uploads on the server.
+        </video>
+        <div class="vid-actions">
+            <button type="button" class="btn btn-secondary" id="btn-play-video">Play original video</button>
+            <span style="font-size:0.85rem;color:var(--muted);">{{ saved_filename }}</span>
+        </div>
+        <div id="mark-timeline-wrap" style="margin-top:1rem;">
+            <p style="margin:0 0 0.4rem;font-size:0.88rem;font-weight:600;">“Mark this.” timeline</p>
+            <p style="margin:0 0 0.5rem;font-size:0.82rem;color:var(--muted);">Cue start times from the pipeline (tap to seek). Populates after report generation.</p>
+            <div class="mark-timeline" id="mark-timeline">
+                <div class="mark-timeline-track" id="mark-timeline-track">
+                    {% for m in mark_moments %}
+                    <button type="button" class="mark-chip" data-t="{{ m.t_sec }}" title="Seek to {{ m.time_display }}">
+                        <span class="t">{{ m.time_display }}</span>
+                        <span class="lbl">{{ m.label }}</span>
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+            <p id="mark-timeline-empty" style="margin:0.5rem 0 0;font-size:0.82rem;color:var(--muted);{% if mark_moments %}display:none;{% endif %}">
+                No cues yet — run <strong>Generate report</strong> below.
+            </p>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="status-strip">
+            <span class="pill{% if job_status.get('status') == 'completed' %} ok{% elif job_status.get('status') == 'failed' %} bad{% elif job_status.get('status') == 'running' %} run{% endif %}" id="job-pill">{{ job_status.get('status', 'unknown') }}</span>
+            <span id="job-detail" class="mono" style="color:var(--muted);">{{ job_status.get('detail', '') }}</span>
+        </div>
+        <p style="margin:0 0 0.25rem;"><strong>Video ID</strong> <code>{{ video_id }}</code></p>
+        <p style="margin:0 0 0.25rem;"><strong>Pipeline</strong> <code>{{ pipeline_version | default('v1') }}</code></p>
+        <p style="margin:0;"><strong>Reports</strong> {{ selected_titles | join(', ') if selected_titles else '—' }}</p>
+
+        <div class="current-step-banner" id="current-step-box" style="display:none;">
+            <p class="step-label">Current step</p>
+            <p class="step-title" id="current-step-title">—</p>
+            <p class="step-desc" id="current-step-desc">—</p>
+        </div>
+
+        <div class="prog-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="prog-bar">
+            <div class="prog-fill" id="prog-fill"></div>
+        </div>
+
+        <p style="margin:0 0 0.35rem;font-weight:600;">Pipeline</p>
+        <ul class="steps" id="steps-list">
+            {% set steps = job_status.get('pipeline_steps') %}
+            {% if steps %}
+                {% for s in steps %}
+                <li class="{{ s.get('status','pending') }}" data-id="{{ s.get('id','') }}">
+                    <span class="ic">{% if s.get('status') == 'completed' %}✓{% elif s.get('status') == 'running' %}●{% elif s.get('status') == 'failed' %}✕{% else %}○{% endif %}</span>
+                    <span class="lbl">{{ s.get('label') }}</span>
+                    <span></span>
+                    {% if s.get('description') %}<span class="sub">{{ s.get('description') }}</span>{% endif %}
+                </li>
+                {% endfor %}
+            {% else %}
+                <li class="pending"><span class="ic">○</span><span class="lbl">Waiting for generation…</span></li>
+            {% endif %}
+        </ul>
+
+        <div id="pipeline-notes" class="alert-info" style="display:{% if job_status.get('pipeline_notes') or job_status.get('demo_notes') %}block{% else %}none{% endif %};">
+            <strong>Pipeline notes</strong>
+            <ul id="pipeline-notes-list">
+                {% for n in (job_status.get('pipeline_notes') or job_status.get('demo_notes') or []) %}
+                <li>{{ n }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div id="friendly-err" class="alert-soft" style="display:{% if job_status.get('friendly_error') %}block{% else %}none{% endif %};">
+            {{ job_status.get('friendly_error') or '' }}
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 style="margin:0 0 0.75rem;font-size:1.12rem;">Still frames</h2>
+        <p style="color:var(--muted);margin:0 0 0.75rem;font-size:0.92rem;">
+            One frame per matched section — extracted at the timestamp aligned with your narration.
+        </p>
+        {% if frame_gallery %}
+        <div class="gallery-grid">
+            {% for g in frame_gallery %}
+            <figure>
+                <div class="thumb-wrap">
+                    <a href="{{ g.url }}" target="_blank" rel="noopener"><img src="{{ g.url }}" alt="{{ g.label }}" loading="lazy" /></a>
+                </div>
+                <figcaption>{{ g.label }}</figcaption>
+            </figure>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color:var(--muted);margin:0;font-size:0.92rem;">Frames appear here after you generate the report.</p>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h2 style="margin:0 0 0.75rem;font-size:1.15rem;">Download PDF</h2>
+        <p style="color:var(--muted);margin:0 0 1rem;font-size:0.95rem;">
+            Professional PDF with sections from your JSON templates, transcript-backed summaries, and still images.
+        </p>
+        <a class="btn btn-pdf-lg {% if not job_status.get('pdf_filename') %}is-disabled{% endif %}"
+           id="pdf-btn"
+           href="{{ url_for('download_report', video_id=video_id) }}"
+           {% if not job_status.get('pdf_filename') %}aria-disabled="true" onclick="return false;"{% endif %}
+        >Download PDF report</a>
+        <p id="pdf-hint" style="color:var(--muted);font-size:0.88rem;margin-top:0.65rem;"></p>
+    </div>
+
+    {% if is_v2 %}
+    <div class="card review-card" id="review-card" style="display:{% if job_status.get('status') in ('awaiting_review', 'completed', 'partial') and review_items %}block{% else %}none{% endif %};">
+        <h2 style="margin:0 0 0.35rem;font-size:1.12rem;">Review before PDF</h2>
+        <p style="margin:0 0 0.5rem;color:var(--muted);font-size:0.92rem;">
+            Check flagged sections, add quick inspector notes, then generate the PDF.
+        </p>
+        <div id="low-conf-banner" class="alert-soft" style="display:{% if low_confidence_messages %}block{% else %}none{% endif %};">
+            <ul id="low-conf-list" style="margin:0;padding-left:1.1rem;">
+                {% for msg in low_confidence_messages %}
+                <li>{{ msg }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="review-list" id="review-list">
+            {% for item in review_items %}
+            <div class="review-row{% if item.flags %} flagged{% endif %}"
+                 data-report-type="{{ item.report_type }}"
+                 data-section-id="{{ item.section_id }}">
+                <h4>{{ item.section_name }}</h4>
+                {% if item.flags %}
+                <div class="review-flags">{{ item.flags | join(' · ') }}</div>
+                {% endif %}
+                <p class="review-preview">{{ item.summary_preview }}…</p>
+                <label style="font-size:0.78rem;color:var(--muted);">Inspector note (optional)</label>
+                <textarea class="review-note-input" placeholder="Add clarification for the client PDF…">{{ item.user_note }}</textarea>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="card gen-area" id="gen-area">
+        <h2 style="margin:0 0 0.75rem;font-size:1.05rem;">Run pipeline</h2>
+        <form method="post" action="{{ url_for('generate_report') }}" id="gen-form">
+            <input type="hidden" name="video_id" value="{{ video_id }}">
+            <input type="hidden" name="saved_filename" value="{{ saved_filename }}">
+            <input type="hidden" name="pipeline_stage" id="pipeline-stage" value="full">
+            <input type="hidden" name="review_notes" id="review-notes-json" value="">
+            {% for rt in selected_report_types %}
+                <input type="hidden" name="report_types" value="{{ rt }}">
+            {% endfor %}
+            <div style="display:flex;flex-wrap:wrap;gap:0.65rem;">
+                {% if is_v2 %}
+                <button type="submit" class="btn btn-secondary" id="btn-analyze" data-stage="analysis">
+                    <span class="spinner" aria-hidden="true"></span>
+                    1. Analyze recording
+                </button>
+                <button type="submit" class="btn" id="gen-btn" data-stage="pdf">
+                    <span class="spinner" aria-hidden="true"></span>
+                    2. Generate PDF
+                </button>
+                {% else %}
+                <button type="submit" class="btn" id="gen-btn" data-stage="full">
+                    <span class="spinner" aria-hidden="true"></span>
+                    Generate report
+                </button>
+                {% endif %}
+            </div>
+        </form>
+        <p id="gen-hint" style="margin:0.65rem 0 0;font-size:0.85rem;color:var(--muted);">
+            {% if is_v2 %}Step 1 builds a draft you can review. Step 2 applies your notes and creates the PDF.{% else %}Runs the full pipeline in one step.{% endif %}
+        </p>
+        <pre id="gen-result" class="mono" style="margin-top:1rem;padding:1rem;background:var(--bg);border-radius:8px;overflow:auto;max-height:180px;display:none;"></pre>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var pill = document.getElementById('job-pill');
+    var detail = document.getElementById('job-detail');
+    var pdfBtn = document.getElementById('pdf-btn');
+    var heroPdf = document.getElementById('hero-pdf-btn');
+    var pdfHint = document.getElementById('pdf-hint');
+    var progFill = document.getElementById('prog-fill');
+    var progBar = document.getElementById('prog-bar');
+    var stepsEl = document.getElementById('steps-list');
+    var friendly = document.getElementById('friendly-err');
+    var pipelineNotes = document.getElementById('pipeline-notes');
+    var pipelineNotesList = document.getElementById('pipeline-notes-list');
+    var curBox = document.getElementById('current-step-box');
+    var curTitle = document.getElementById('current-step-title');
+    var curDesc = document.getElementById('current-step-desc');
+    var videoEl = document.getElementById('orig-video');
+    var btnPlay = document.getElementById('btn-play-video');
+    var genArea = document.getElementById('gen-area');
+    var markTrack = document.getElementById('mark-timeline-track');
+    var markEmpty = document.getElementById('mark-timeline-empty');
+
+    var pollTimer = null;
+    var reviewCard = document.getElementById('review-card');
+    var reviewList = document.getElementById('review-list');
+    var lowConfBanner = document.getElementById('low-conf-banner');
+    var lowConfList = document.getElementById('low-conf-list');
+    var pipelineStageInput = document.getElementById('pipeline-stage');
+    var reviewNotesInput = document.getElementById('review-notes-json');
+    var isV2 = {{ 'true' if is_v2 else 'false' }};
+
+    function collectReviewNotes() {
+        if (!reviewList) return '[]';
+        var rows = [];
+        reviewList.querySelectorAll('.review-row').forEach(function (row) {
+            var ta = row.querySelector('.review-note-input');
+            rows.push({
+                report_type: row.getAttribute('data-report-type'),
+                section_id: row.getAttribute('data-section-id'),
+                user_note: ta ? ta.value.trim() : ''
+            });
+        });
+        return JSON.stringify(rows);
+    }
+
+    function renderReviewItems(items, lowMsgs) {
+        if (!reviewList || !items || !items.length) return;
+        if (reviewCard) reviewCard.style.display = 'block';
+        reviewList.innerHTML = '';
+        items.forEach(function (item) {
+            var div = document.createElement('div');
+            div.className = 'review-row' + (item.flags && item.flags.length ? ' flagged' : '');
+            div.setAttribute('data-report-type', item.report_type || '');
+            div.setAttribute('data-section-id', item.section_id || '');
+            var flags = (item.flags || []).join(' · ');
+            div.innerHTML =
+                '<h4>' + (item.section_name || item.section_id || 'Section') + '</h4>' +
+                (flags ? '<div class="review-flags">' + flags + '</div>' : '') +
+                '<p class="review-preview">' + (item.summary_preview || '') + '…</p>' +
+                '<label style="font-size:0.78rem;color:var(--muted);">Inspector note (optional)</label>' +
+                '<textarea class="review-note-input" placeholder="Add clarification for the client PDF…">' +
+                (item.user_note || '') + '</textarea>';
+            reviewList.appendChild(div);
+        });
+        if (lowConfList && lowMsgs && lowMsgs.length) {
+            lowConfList.innerHTML = '';
+            lowMsgs.forEach(function (m) {
+                var li = document.createElement('li');
+                li.textContent = m;
+                lowConfList.appendChild(li);
+            });
+            if (lowConfBanner) lowConfBanner.style.display = 'block';
+        }
+    }
+
+    function bindMarkChips() {
+        document.querySelectorAll('.mark-chip').forEach(function (chip) {
+            chip.addEventListener('click', function () {
+                var t = parseFloat(chip.getAttribute('data-t') || '0');
+                if (!videoEl || isNaN(t)) return;
+                videoEl.currentTime = Math.max(0, t);
+                videoEl.play().catch(function () {});
+            });
+        });
+    }
+
+    function renderMarkMoments(moments) {
+        if (!markTrack) return;
+        if (!moments || !moments.length) {
+            markTrack.innerHTML = '';
+            if (markEmpty) markEmpty.style.display = 'block';
+            return;
+        }
+        if (markEmpty) markEmpty.style.display = 'none';
+        markTrack.innerHTML = '';
+        moments.forEach(function (m) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'mark-chip';
+            btn.setAttribute('data-t', String(m.t_sec));
+            btn.title = 'Seek to ' + (m.time_display || (String(m.t_sec) + 's'));
+            btn.innerHTML = '<span class="t">' + (m.time_display || (String(m.t_sec) + 's')) + '</span>' +
+                '<span class="lbl">' + (m.label || '') + '</span>';
+            btn.addEventListener('click', function () {
+                var ts = parseFloat(btn.getAttribute('data-t') || '0');
+                if (!videoEl || isNaN(ts)) return;
+                videoEl.currentTime = Math.max(0, ts);
+                videoEl.play().catch(function () {});
+            });
+            markTrack.appendChild(btn);
+        });
+    }
+
+    function stopPolling() {
+        if (pollTimer !== null) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+        }
+    }
+
+    /** Poll while the server job is ``running``; single poll on load when idle (saves phone battery on LAN). */
+    function maybeContinuePolling(status) {
+        if (status === 'running') {
+            if (pollTimer === null) {
+                pollTimer = setInterval(poll, 1500);
+            }
+        } else {
+            stopPolling();
+        }
+    }
+
+    function iconFor(st) {
+        if (st === 'completed') return '✓';
+        if (st === 'running') return '●';
+        if (st === 'failed') return '✕';
+        return '○';
+    }
+
+    function stepLabelFromId(id) {
+        var map = {
+            audio: 'Prepare audio',
+            workflow: 'Plan workflow',
+            transcription: 'Transcribe audio',
+            analyze: 'Analyze transcript',
+            domain: 'Domain expertise',
+            matching: 'Match “Mark this.” cues',
+            writing: 'Write report',
+            qa: 'Quality review',
+            crew: 'Agent synthesis',
+            pdf: 'Generate PDF',
+            completed: 'Done'
+        };
+        return map[id] || id || '—';
+    }
+
+    function renderSteps(steps) {
+        if (!steps || !steps.length) return;
+        stepsEl.innerHTML = '';
+        var done = 0;
+        var runningRow = null;
+        steps.forEach(function (s) {
+            if (s.status === 'completed') done++;
+            var li = document.createElement('li');
+            li.className = s.status || 'pending';
+            li.setAttribute('data-id', s.id || '');
+            li.innerHTML =
+                '<span class="ic">' + iconFor(s.status) + '</span>' +
+                '<span class="lbl">' + (s.label || s.id) + '</span><span></span>';
+            if (s.description) {
+                var sub = document.createElement('span');
+                sub.className = 'sub';
+                sub.textContent = s.description;
+                li.appendChild(sub);
+            }
+            stepsEl.appendChild(li);
+            if (s.status === 'running') runningRow = s;
+        });
+        var pct = Math.round((done / Math.max(1, steps.length)) * 100);
+        progFill.style.width = pct + '%';
+        if (progBar) progBar.setAttribute('aria-valuenow', String(pct));
+
+        if (runningRow) {
+            curBox.style.display = 'block';
+            curTitle.textContent = runningRow.label || stepLabelFromId(runningRow.id);
+            curDesc.textContent = runningRow.description || 'In progress…';
+        } else {
+            curBox.style.display = 'none';
+        }
+    }
+
+    function setPdfReady(filename) {
+        var href = '{{ url_for("download_report", video_id=video_id) }}';
+        [pdfBtn, heroPdf].forEach(function (el) {
+            if (!el) return;
+            el.classList.remove('is-disabled');
+            el.removeAttribute('aria-disabled');
+            el.setAttribute('href', href);
+            el.onclick = null;
+        });
+        if (filename) pdfHint.textContent = 'Ready: ' + filename;
+    }
+
+    function poll() {
+        fetch('{{ url_for("upload_status", video_id=video_id) }}')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || !data.job) return;
+                var st = data.job.status || 'unknown';
+                pill.textContent = st;
+                pill.className = 'pill' +
+                    (st === 'completed' ? ' ok' : '') +
+                    (st === 'failed' ? ' bad' : '') +
+                    (st === 'running' ? ' run' : '');
+                detail.textContent = data.job.detail || '';
+                if (data.pipeline_steps) renderSteps(data.pipeline_steps);
+
+                var pollNotes = data.pipeline_notes || data.demo_notes || [];
+                if (pollNotes.length) {
+                    pipelineNotes.style.display = 'block';
+                    pipelineNotesList.innerHTML = '';
+                    pollNotes.forEach(function (note) {
+                        var li = document.createElement('li');
+                        li.textContent = note;
+                        pipelineNotesList.appendChild(li);
+                    });
+                }
+
+                if (data.friendly_error) {
+                    friendly.style.display = 'block';
+                    friendly.textContent = data.friendly_error;
+                }
+
+                if (data.job.pdf_filename) {
+                    setPdfReady(data.job.pdf_filename);
+                }
+
+                if (Array.isArray(data.mark_moments)) {
+                    renderMarkMoments(data.mark_moments);
+                }
+
+                if (Array.isArray(data.review_items) && data.review_items.length) {
+                    renderReviewItems(data.review_items, data.low_confidence_messages || []);
+                }
+
+                if (st === 'awaiting_review') {
+                    if (reviewCard) reviewCard.style.display = 'block';
+                }
+
+                maybeContinuePolling(st);
+                if (st === 'completed' || st === 'failed') {
+                    if (st === 'completed') renderSteps(data.pipeline_steps || []);
+                    pill.classList.remove('run');
+                }
+            })
+            .catch(function () {});
+    }
+
+    if (btnPlay && videoEl) {
+        btnPlay.addEventListener('click', function () {
+            videoEl.play().catch(function () {});
+        });
+    }
+
+    bindMarkChips();
+
+    poll();
+
+    var form = document.getElementById('gen-form');
+    if (form) {
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            var submitter = e.submitter;
+            var stage = (submitter && submitter.getAttribute('data-stage')) || 'full';
+            if (pipelineStageInput) pipelineStageInput.value = stage;
+            if (reviewNotesInput && (stage === 'pdf' || stage === 'full')) {
+                reviewNotesInput.value = collectReviewNotes();
+            }
+            var buttons = form.querySelectorAll('button[type="submit"]');
+            buttons.forEach(function (b) { b.disabled = true; });
+            genArea.classList.add('is-loading');
+            stopPolling();
+            pollTimer = setInterval(poll, 1300);
+            try {
+                var res = await fetch(form.action, { method: 'POST', body: new FormData(form) });
+                var data = await res.json();
+                var pre = document.getElementById('gen-result');
+                pre.style.display = 'block';
+                pre.textContent = JSON.stringify(data, null, 2);
+                poll();
+                if (data.error && !data.ok) {
+                    friendly.style.display = 'block';
+                    friendly.textContent = data.error;
+                } else {
+                    friendly.style.display = 'none';
+                }
+                var notesPost = data.pipeline_notes || data.demo_notes || [];
+                if (notesPost.length) {
+                    pipelineNotes.style.display = 'block';
+                    pipelineNotesList.innerHTML = '';
+                    notesPost.forEach(function (note) {
+                        var li = document.createElement('li');
+                        li.textContent = note;
+                        pipelineNotesList.appendChild(li);
+                    });
+                }
+                if (Array.isArray(data.mark_moments)) {
+                    renderMarkMoments(data.mark_moments);
+                }
+                if (Array.isArray(data.review_items)) {
+                    renderReviewItems(data.review_items, data.low_confidence_messages || []);
+                }
+                if (data.status === 'awaiting_review') {
+                    pill.textContent = 'awaiting_review';
+                    pill.className = 'pill run';
+                }
+                if (data.pdf_filename) {
+                    setPdfReady(data.pdf_filename);
+                }
+                if (data.pdf_error) {
+                    friendly.style.display = 'block';
+                    friendly.textContent = data.pdf_error;
+                }
+            } catch (err) {
+                document.getElementById('gen-result').style.display = 'block';
+                document.getElementById('gen-result').textContent = String(err);
+            } finally {
+                buttons.forEach(function (b) { b.disabled = false; });
+                genArea.classList.remove('is-loading');
+            }
+        });
+    }
+})();
+</script>
+{% endblock %}

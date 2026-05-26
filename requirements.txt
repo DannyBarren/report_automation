@@ -1,0 +1,23 @@
+# jobdoc-demo — Python dependencies for Flask + CrewAI MVP
+# Pin versions lightly for reproducibility; adjust as needed for your environment.
+
+flask>=3.0.0
+flask-sqlalchemy>=3.1.0
+crewai>=0.70.0
+crewai-tools>=0.12.0
+pydantic>=2.0.0
+
+# PDF export (HTML → PDF). On Windows, GTK3 DLLs are NOT installed by pip —
+# run_demo.bat extracts the official GTK3 runtime (see utils/setup_weasyprint.py).
+py7zr>=0.21.0
+# macOS: brew install pango gdk-pixbuf libffi
+# Linux: apt install libpango-1.0-0 libpangocairo-1.0-0
+weasyprint>=62.0
+
+moviepy>=1.0.3
+deepgram-sdk>=3.0.0
+python-dotenv>=1.0.0
+jinja2>=3.1.0
+langchain-core>=0.2.0
+langchain-anthropic>=0.2.0
+Pillow>=10.0.0

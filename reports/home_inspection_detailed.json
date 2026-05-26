@@ -1,0 +1,278 @@
+{
+  "schema_version": 2,
+  "report_type": "home_inspection_detailed",
+  "title": "Comprehensive Home Inspection Report",
+  "business_name": "Precision Property Inspections",
+  "job_address": "",
+  "logo_url": null,
+  "featured": true,
+  "template_description": "Full 8-area residential inspection with executive summary, severity badges, and client-ready PDF styling. Recommended for field testing.",
+  "pdf_styling": {
+    "primary_color": "#1e40af",
+    "secondary_color": "#64748b",
+    "accent_color": "#2563eb",
+    "font_family": "Helvetica, Arial, sans-serif",
+    "header_style": "bold",
+    "photo_grid": "2-column with caption below",
+    "photo_aspect_ratio": "4/3",
+    "photo_caption_max_words": 48,
+    "include_timestamps": true,
+    "include_narration_in_caption": true,
+    "page_footer": "Confidential · Precision Property Inspections · Page {page} of {total_pages}",
+    "page_header": "{report_title}",
+    "cover_subtitle": "Comprehensive residential property inspection",
+    "cover_show_job_address": true,
+    "show_summary_page": true,
+    "show_photo_appendix": true,
+    "show_running_header": true,
+    "section_page_break": "before",
+    "show_disclaimer": true,
+    "disclaimer_text": "This inspection report reflects visible and readily accessible conditions at the time of the guided field visit. It is not a warranty, guarantee, or code-compliance certification. Latent or concealed defects may exist.",
+    "severity_colors": {
+      "informational": "#64748b",
+      "no_issue": "#64748b",
+      "minor": "#16a34a",
+      "moderate": "#f59e0b",
+      "major": "#dc2626",
+      "safety_critical": "#991b1b"
+    },
+    "severity_bands": {
+      "informational": "green",
+      "no_issue": "green",
+      "none": "green",
+      "minor": "green",
+      "moderate": "yellow",
+      "major": "red",
+      "safety_critical": "red"
+    }
+  },
+  "guidance": {
+    "intro_script": "Welcome to the Comprehensive Home Inspection with Precision Property Inspections. We will walk through eight key areas of the property in order. At each stop, pause, say Mark this. clearly, then describe what you see before moving on. Speak in complete sentences so the report is clear for your client.",
+    "outro_script": "Inspection complete. Thank you for documenting each area. Upload this recording to generate your client-ready PDF report.",
+    "identification_phrase": "Mark this.",
+    "sections": [
+      {
+        "section_id": "exterior_foundation",
+        "title": "Foundation & Exterior",
+        "capture_order": 1,
+        "voice_prompt": "Walk the full perimeter of the foundation and exterior walls. Look for cracks, settling, bowing, efflorescence, and grading that slopes toward the structure. Say Mark this. then describe location, size, and whether drainage appears to direct water away from the foundation.",
+        "on_screen_text": "Foundation & Exterior\nSay 'Mark this.' — cracks, grading, moisture",
+        "required": true,
+        "min_marks": 1,
+        "suggested_phrases": ["crack", "settling", "grading", "water", "efflorescence", "no issues", "satisfactory"]
+      },
+      {
+        "section_id": "roof_structure",
+        "title": "Roof & Attic",
+        "capture_order": 2,
+        "voice_prompt": "From the ground, examine shingles, flashing, gutters, and downspouts. If the attic is safely accessible, note ventilation, insulation depth, and signs of leaks or pest activity. Say Mark this. and narrate roof age or material if visible, plus any defects.",
+        "on_screen_text": "Roof & Attic\nShingles, gutters, attic if accessible",
+        "required": true,
+        "min_marks": 1,
+        "suggested_phrases": ["shingle", "curling", "leak stain", "gutter", "ventilation", "insulation"]
+      },
+      {
+        "section_id": "electrical_system",
+        "title": "Electrical System",
+        "capture_order": 3,
+        "voice_prompt": "Open the main electrical panel only if it is safe to do so. Describe service amperage if labeled, breaker condition, double taps, scorch marks, and whether the panel is properly labeled. Say Mark this. and note any immediate safety concerns.",
+        "on_screen_text": "Electrical panel & visible wiring\nSafety first — do not touch energized parts",
+        "required": true,
+        "min_marks": 1,
+        "suggested_phrases": ["amp", "breaker", "double tap", "label", "scorch", "GFCI", "no issues"]
+      },
+      {
+        "section_id": "plumbing_system",
+        "title": "Plumbing",
+        "capture_order": 4,
+        "voice_prompt": "Document the water heater, main shutoff, and visible supply and drain lines. Under sinks and at mechanical areas, note active leaks, corrosion, or improper connections. Say Mark this. and state water heater type and approximate age if known.",
+        "on_screen_text": "Plumbing — water heater, leaks, fixtures",
+        "required": true,
+        "min_marks": 1,
+        "suggested_phrases": ["leak", "drip", "corrosion", "water heater", "PEX", "galvanized", "no leaks"]
+      },
+      {
+        "section_id": "hvac_system",
+        "title": "HVAC",
+        "capture_order": 5,
+        "voice_prompt": "Film the heating and cooling equipment, thermostat, and visible ductwork. Describe whether the system appears operational, filter condition, rust, unusual noise, or short cycling if observed. Say Mark this. and mention last service date if the client stated it.",
+        "on_screen_text": "HVAC equipment & thermostat",
+        "required": true,
+        "min_marks": 1,
+        "suggested_phrases": ["filter", "rust", "short cycle", "condensate", "gas furnace", "heat pump"]
+      },
+      {
+        "section_id": "interior_rooms",
+        "title": "Interior Rooms",
+        "capture_order": 6,
+        "voice_prompt": "Walk the main living areas, bedrooms, and halls. Note floors, walls, ceilings, windows, doors, and signs of moisture or settlement. Say Mark this. and summarize room by room or by the most significant interior findings.",
+        "on_screen_text": "Interior — floors, walls, windows, moisture",
+        "required": true,
+        "min_marks": 1,
+        "suggested_phrases": ["moisture", "crack", "window seal", "floor slope", "stain", "no issues"]
+      },
+      {
+        "section_id": "basement_structure",
+        "title": "Basement / Crawl Space",
+        "capture_order": 7,
+        "voice_prompt": "Enter the basement or crawl space if accessible and safe. Describe floor slab, foundation walls, columns, sump pump, dehumidifier, and any water staining or pest evidence. If not accessible, say Mark this. and clearly state the limitation.",
+        "on_screen_text": "Basement or crawl space\nOr state 'not accessible'",
+        "required": true,
+        "min_marks": 1,
+        "suggested_phrases": ["sump", "damp", "mold odor", "not accessible", "finished basement", "vapor barrier"]
+      },
+      {
+        "section_id": "inspection_summary",
+        "title": "Summary & Client Priorities",
+        "capture_order": 8,
+        "voice_prompt": "Provide your closing summary for the client. Say Mark this. then state the top three findings by priority, recommended specialists if any, and what should be monitored versus repaired immediately.",
+        "on_screen_text": "Summary — top 3 findings & next steps",
+        "required": true,
+        "min_marks": 1,
+        "suggested_phrases": ["priority", "monitor", "licensed electrician", "roof contractor", "no major concerns"]
+      }
+    ]
+  },
+  "content_structure": {
+    "summary_page_title": "Executive Summary",
+    "organization": "section_order",
+    "sections": [
+      {
+        "section_id": "exterior_foundation",
+        "title": "Foundation and Exterior",
+        "writer_instructions": "Write in clear professional language. State location on the building (north wall, rear yard, etc.) when narrated. Classify crack patterns as hairline, stepped, or horizontal only if the technician described them. Tie recommendations to licensed contractors when structural movement is suggested.",
+        "fields": ["condition_summary", "specific_findings", "recommendations", "severity"],
+        "field_specs": [
+          {"key": "condition_summary", "label": "Overall condition", "field_type": "text", "required": true},
+          {"key": "specific_findings", "label": "Specific findings", "field_type": "text", "required": true},
+          {"key": "recommendations", "label": "Recommendations", "field_type": "text", "required": true},
+          {"key": "severity", "label": "Severity", "field_type": "enum", "required": true}
+        ],
+        "default_text": "No significant foundation or exterior deficiencies were observed unless noted in the narration.",
+        "tone": "professional neutral",
+        "min_summary_words": 50,
+        "show_photo": true,
+        "show_severity_badge": true
+      },
+      {
+        "section_id": "roof_structure",
+        "title": "Roof and Attic",
+        "writer_instructions": "Cover roof covering, flashing, gutters, and attic conditions when narrated. Distinguish active leaks from historical staining. Note if attic was not accessed and treat as a limitation.",
+        "fields": ["condition_summary", "specific_findings", "recommendations", "severity"],
+        "field_specs": [
+          {"key": "condition_summary", "label": "Overall condition", "field_type": "text", "required": true},
+          {"key": "specific_findings", "label": "Specific findings", "field_type": "text", "required": true},
+          {"key": "recommendations", "label": "Recommendations", "field_type": "text", "required": true},
+          {"key": "severity", "label": "Severity", "field_type": "enum", "required": true}
+        ],
+        "default_text": "Roof and attic areas were documented per technician narration.",
+        "tone": "professional neutral",
+        "min_summary_words": 50,
+        "show_photo": true,
+        "show_severity_badge": true
+      },
+      {
+        "section_id": "electrical_system",
+        "title": "Electrical System",
+        "writer_instructions": "Include service size, panel brand/condition, and safety items only when spoken. Use severity safety_critical for scorching, exposed conductors, or missing covers if narrated. Recommend licensed electrician for panel upgrades or hazards.",
+        "fields": ["condition_summary", "specific_findings", "recommendations", "severity"],
+        "field_specs": [
+          {"key": "condition_summary", "label": "Overall condition", "field_type": "text", "required": true},
+          {"key": "specific_findings", "label": "Specific findings", "field_type": "text", "required": true},
+          {"key": "recommendations", "label": "Recommendations", "field_type": "text", "required": true},
+          {"key": "severity", "label": "Severity", "field_type": "enum", "required": true}
+        ],
+        "default_text": "Electrical service was documented per narration; no immediate hazards stated unless noted.",
+        "tone": "professional neutral",
+        "min_summary_words": 50,
+        "show_photo": true,
+        "show_severity_badge": true
+      },
+      {
+        "section_id": "plumbing_system",
+        "title": "Plumbing",
+        "writer_instructions": "Describe supply and drain issues, water heater condition, and leak activity. If only a drip was mentioned, state uncertainty about source unless narrated. Recommend plumber for active leaks.",
+        "fields": ["condition_summary", "specific_findings", "recommendations", "severity"],
+        "field_specs": [
+          {"key": "condition_summary", "label": "Overall condition", "field_type": "text", "required": true},
+          {"key": "specific_findings", "label": "Specific findings", "field_type": "text", "required": true},
+          {"key": "recommendations", "label": "Recommendations", "field_type": "text", "required": true},
+          {"key": "severity", "label": "Severity", "field_type": "enum", "required": true}
+        ],
+        "default_text": "Plumbing systems were documented per narration.",
+        "tone": "professional neutral",
+        "min_summary_words": 50,
+        "show_photo": true,
+        "show_severity_badge": true
+      },
+      {
+        "section_id": "hvac_system",
+        "title": "HVAC",
+        "writer_instructions": "Summarize equipment type, apparent operation, maintenance needs, and comfort/safety concerns from narration. Note if only visual survey was performed.",
+        "fields": ["condition_summary", "specific_findings", "recommendations", "severity"],
+        "field_specs": [
+          {"key": "condition_summary", "label": "Overall condition", "field_type": "text", "required": true},
+          {"key": "specific_findings", "label": "Specific findings", "field_type": "text", "required": true},
+          {"key": "recommendations", "label": "Recommendations", "field_type": "text", "required": true},
+          {"key": "severity", "label": "Severity", "field_type": "enum", "required": true}
+        ],
+        "default_text": "HVAC equipment was documented per narration.",
+        "tone": "professional neutral",
+        "min_summary_words": 45,
+        "show_photo": true,
+        "show_severity_badge": true
+      },
+      {
+        "section_id": "interior_rooms",
+        "title": "Interior Rooms",
+        "writer_instructions": "Organize by room or theme as narrated. Include moisture indicators, window issues, and floor/wall concerns. Use minor or no_issue severity when technician reported satisfactory interiors.",
+        "fields": ["condition_summary", "specific_findings", "recommendations", "severity"],
+        "field_specs": [
+          {"key": "condition_summary", "label": "Overall condition", "field_type": "text", "required": true},
+          {"key": "specific_findings", "label": "Specific findings", "field_type": "text", "required": true},
+          {"key": "recommendations", "label": "Recommendations", "field_type": "text", "required": true},
+          {"key": "severity", "label": "Severity", "field_type": "enum", "required": true}
+        ],
+        "default_text": "Interior areas were documented per narration.",
+        "tone": "professional neutral",
+        "min_summary_words": 45,
+        "show_photo": true,
+        "show_severity_badge": true
+      },
+      {
+        "section_id": "basement_structure",
+        "title": "Basement and Crawl Space",
+        "writer_instructions": "If not accessible, lead with that limitation. Otherwise describe moisture, structure, and mechanical items. Elevate severity for active water or structural distress.",
+        "fields": ["condition_summary", "specific_findings", "recommendations", "severity"],
+        "field_specs": [
+          {"key": "condition_summary", "label": "Overall condition", "field_type": "text", "required": true},
+          {"key": "specific_findings", "label": "Specific findings", "field_type": "text", "required": true},
+          {"key": "recommendations", "label": "Recommendations", "field_type": "text", "required": true},
+          {"key": "severity", "label": "Severity", "field_type": "enum", "required": true}
+        ],
+        "default_text": "Basement or crawl space was not accessed unless described in narration.",
+        "tone": "professional neutral",
+        "min_summary_words": 45,
+        "show_photo": true,
+        "show_severity_badge": true
+      },
+      {
+        "section_id": "inspection_summary",
+        "title": "Summary and Client Priorities",
+        "writer_instructions": "Synthesize cross-cutting priorities from the closing narration. Put actionable client steps in recommendations field. Use severity informational unless urgent items were emphasized. Do not introduce new defects not mentioned earlier.",
+        "fields": ["condition_summary", "specific_findings", "recommendations", "severity"],
+        "field_specs": [
+          {"key": "condition_summary", "label": "Overall assessment", "field_type": "text", "required": true},
+          {"key": "specific_findings", "label": "Priority findings", "field_type": "text", "required": true},
+          {"key": "recommendations", "label": "Client next steps", "field_type": "text", "required": true},
+          {"key": "severity", "label": "Overall priority", "field_type": "enum", "required": true}
+        ],
+        "default_text": "Overall property condition summarized per closing narration.",
+        "tone": "professional advisory",
+        "min_summary_words": 60,
+        "show_photo": false,
+        "show_severity_badge": true
+      }
+    ]
+  }
+}

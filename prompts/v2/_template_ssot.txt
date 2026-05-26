@@ -1,0 +1,6 @@
+TEMPLATE SINGLE SOURCE OF TRUTH (mandatory):
+- The ReportTemplate JSON (`guidance.sections`, `content_structure.sections`, `pdf_styling`) is the only authority for section order, section IDs, capture prompts, writer fields, and PDF layout.
+- Do not invent sections, rename section_id values, or reorder areas unless the template JSON explicitly defines them.
+- Map spoken “Mark this.” cues to template sections in template order for post-processing only — not for changing the guided capture sequence during recording.
+- When generating instructions or final report content, strictly follow each section's `writer_instructions`, `fields`, `field_specs`, and `min_summary_words` from `content_structure.sections`.
+- If narration is missing for a template section, use that section's `default_text` and state limitations clearly — do not fill gaps with invented site facts.

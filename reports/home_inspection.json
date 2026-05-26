@@ -1,0 +1,216 @@
+{
+  "schema_version": 2,
+  "report_type": "home_inspection",
+  "title": "Professional Home Inspection Report",
+  "business_name": "ABC Inspections",
+  "job_address": "",
+  "logo_url": null,
+  "pdf_styling": {
+    "primary_color": "#1e3a8a",
+    "secondary_color": "#475569",
+    "accent_color": "#2563eb",
+    "font_family": "Helvetica, Arial, sans-serif",
+    "header_style": "bold blue",
+    "photo_grid": "2-column with caption below",
+    "include_timestamps": true,
+    "include_narration_in_caption": true,
+    "page_footer": "{business_name} · Confidential · Page {page} of {total_pages}",
+    "show_photo_appendix": true,
+    "section_page_break": "before",
+    "page_header": "{business_name} • {report_title}",
+    "logo_placement": "header-left",
+    "show_summary_page": true,
+    "show_disclaimer": true,
+    "disclaimer_text": "This inspection report is based on visible and readily accessible conditions at the time of inspection. It is not a warranty or prediction of future performance.",
+    "recommendation_callout_style": "border-left accent",
+    "cover_subtitle": "Residential property inspection",
+    "severity_colors": {
+      "informational": "#64748b",
+      "minor": "#ca8a04",
+      "moderate": "#ea580c",
+      "major": "#dc2626",
+      "safety_critical": "#7f1d1d"
+    }
+  },
+  "guidance": {
+    "intro_script": "Welcome. We will walk through the entire property section by section. At each stop, say Mark this. then describe what you see before moving on.",
+    "outro_script": "Home inspection recording complete. Upload to generate your client-ready PDF.",
+    "identification_phrase": "Mark this.",
+    "sections": [
+      {
+        "section_id": "exterior_foundation",
+        "title": "Foundation & Exterior",
+        "voice_prompt": "Walk around the foundation. Say Mark this. and describe any cracks, settling, grading issues, or water stains.",
+        "on_screen_text": "Foundation exterior — cracks, grading, moisture",
+        "required": true,
+        "min_marks": 1,
+        "capture_order": 1,
+        "suggested_phrases": ["crack", "settling", "grading", "water stain", "efflorescence"]
+      },
+      {
+        "section_id": "roof_exterior",
+        "title": "Roof & Exterior Envelope",
+        "voice_prompt": "From a safe vantage, film the roof and gutters. Say Mark this. and note missing shingles, sagging, or drainage issues.",
+        "on_screen_text": "Roof & gutters — visible defects",
+        "required": true,
+        "min_marks": 1,
+        "capture_order": 2,
+        "suggested_phrases": ["shingle", "gutter", "flashing", "sag"]
+      },
+      {
+        "section_id": "electrical_panel",
+        "title": "Electrical Service",
+        "voice_prompt": "Open the main panel if safe. Say Mark this. and describe panel size, labeling, and any visible concerns.",
+        "on_screen_text": "Main electrical panel",
+        "required": true,
+        "min_marks": 1,
+        "capture_order": 3,
+        "suggested_phrases": ["amp", "panel", "breaker", "label", "double tap"]
+      },
+      {
+        "section_id": "plumbing_supply",
+        "title": "Plumbing — Supply & Fixtures",
+        "voice_prompt": "Show water heater and under-sink areas. Say Mark this. and note leaks, corrosion, or temperature issues.",
+        "on_screen_text": "Plumbing — leaks and water heater",
+        "required": true,
+        "min_marks": 1,
+        "capture_order": 4,
+        "suggested_phrases": ["leak", "drip", "corrosion", "water heater"]
+      },
+      {
+        "section_id": "hvac_system",
+        "title": "HVAC",
+        "voice_prompt": "Film the HVAC unit and thermostat. Say Mark this. and describe operation, age if known, and any concerns.",
+        "on_screen_text": "HVAC unit & thermostat",
+        "required": true,
+        "min_marks": 1,
+        "capture_order": 5,
+        "suggested_phrases": ["short cycling", "filter", "rust", "noise"]
+      },
+      {
+        "section_id": "interior_general",
+        "title": "Interior — General",
+        "voice_prompt": "Walk main living areas. Say Mark this. and summarize floors, walls, windows, and moisture signs.",
+        "on_screen_text": "Interior walkthrough",
+        "required": true,
+        "min_marks": 1,
+        "capture_order": 6,
+        "suggested_phrases": ["moisture", "crack", "window", "floor"]
+      },
+      {
+        "section_id": "attic_crawl",
+        "title": "Attic / Crawl Space",
+        "voice_prompt": "If accessible, enter attic or crawl. Say Mark this. or state not accessible. Note insulation, ventilation, pests.",
+        "on_screen_text": "Attic or crawl — or not accessible",
+        "required": false,
+        "min_marks": 1,
+        "capture_order": 7,
+        "suggested_phrases": ["insulation", "ventilation", "accessible", "pest"]
+      },
+      {
+        "section_id": "summary_recommendations",
+        "title": "Summary & Priorities",
+        "voice_prompt": "Say Mark this. and give your top three findings and recommended next steps for the client.",
+        "on_screen_text": "Summary — top findings & recommendations",
+        "required": true,
+        "min_marks": 1,
+        "capture_order": 8,
+        "suggested_phrases": ["recommend", "monitor", "licensed", "urgent"]
+      }
+    ]
+  },
+  "content_structure": {
+    "summary_page_title": "Executive Summary",
+    "organization": "section_order",
+    "sections": [
+      {
+        "section_id": "exterior_foundation",
+        "title": "Foundation and Exterior",
+        "default_text": "No major issues observed unless noted.",
+        "fields": ["condition_summary", "findings", "recommendations", "severity"],
+        "writer_instructions": "Detail cracks with location and approximate size when narrated. Recommend structural engineer for significant settlement.",
+        "tone": "professional neutral",
+        "min_summary_words": 55,
+        "show_photo": true,
+        "show_severity_badge": true
+      },
+      {
+        "section_id": "roof_exterior",
+        "title": "Roof and Exterior Envelope",
+        "default_text": "Roof and drainage documented per narration.",
+        "fields": ["condition_summary", "findings", "recommendations", "severity"],
+        "writer_instructions": "Note roof covering condition and gutter/downspout performance.",
+        "tone": "professional neutral",
+        "min_summary_words": 50,
+        "show_photo": true,
+        "show_severity_badge": true
+      },
+      {
+        "section_id": "electrical_panel",
+        "title": "Electrical Service",
+        "default_text": "Electrical service documented per narration.",
+        "fields": ["condition_summary", "findings", "recommendations", "severity"],
+        "writer_instructions": "Include amperage and labeling when stated. Recommend licensed electrician for safety items.",
+        "tone": "professional neutral",
+        "min_summary_words": 50,
+        "show_photo": true,
+        "show_severity_badge": true
+      },
+      {
+        "section_id": "plumbing_supply",
+        "title": "Plumbing",
+        "default_text": "Plumbing systems documented per narration.",
+        "fields": ["condition_summary", "findings", "recommendations", "severity"],
+        "writer_instructions": "Describe active leaks and water heater condition. Note if supply vs drain unclear.",
+        "tone": "professional neutral",
+        "min_summary_words": 50,
+        "show_photo": true,
+        "show_severity_badge": true
+      },
+      {
+        "section_id": "hvac_system",
+        "title": "HVAC",
+        "default_text": "HVAC documented per narration.",
+        "fields": ["condition_summary", "findings", "recommendations", "severity"],
+        "writer_instructions": "Note operational concerns and maintenance recommendations.",
+        "tone": "professional neutral",
+        "min_summary_words": 45,
+        "show_photo": true,
+        "show_severity_badge": true
+      },
+      {
+        "section_id": "interior_general",
+        "title": "Interior",
+        "default_text": "Interior areas documented per narration.",
+        "fields": ["condition_summary", "findings", "recommendations", "severity"],
+        "writer_instructions": "Cover floors, walls, moisture indicators when mentioned.",
+        "tone": "professional neutral",
+        "min_summary_words": 45,
+        "show_photo": true,
+        "show_severity_badge": true
+      },
+      {
+        "section_id": "attic_crawl",
+        "title": "Attic / Crawl Space",
+        "default_text": "Attic or crawl space not accessed unless noted.",
+        "fields": ["condition_summary", "findings", "recommendations", "severity"],
+        "writer_instructions": "If not accessible, state limitation clearly.",
+        "tone": "professional neutral",
+        "min_summary_words": 40,
+        "show_photo": true,
+        "show_severity_badge": true
+      },
+      {
+        "section_id": "summary_recommendations",
+        "title": "Summary and Recommendations",
+        "default_text": "Summary per closing narration.",
+        "fields": ["condition_summary", "findings", "recommendations", "severity"],
+        "writer_instructions": "Synthesize top priorities; bullet key client actions in field_values.recommendations.",
+        "tone": "professional advisory",
+        "min_summary_words": 60,
+        "show_photo": false,
+        "show_severity_badge": false
+      }
+    ]
+  }
+}

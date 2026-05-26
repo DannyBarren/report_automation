@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Field recording{% endblock %}
+{% block wrap_class %} wrap--wide{% endblock %}
+{% block header_title %}Guided field recording{% endblock %}
+{% block header_subtitle %}You control the pace — press <strong>Next Step</strong> when ready{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/field_recorder.css') }}">
+{% endblock %}
+
+{% block content %}
+<div id="field-rec-root" class="field-rec">
+  <div id="countdown-overlay" class="countdown-overlay" aria-hidden="true">
+    <div id="countdown-num" class="countdown-num">3</div>
+    <p class="countdown-hint">Get ready — say <strong>{{ identification_phrase }}</strong> at each stop, then press <strong>Next Step</strong>.</p>
+  </div>
+
+  <header class="guided-dock" id="guided-dock" aria-live="polite">
+    <div class="dock-top">
+      <p class="dock-progress" id="dock-progress">Loading steps…</p>
+      <button type="button" class="tool-btn" id="btn-high-vis" aria-pressed="false" title="High contrast for bright sites">☀️ High-vis</button>
+    </div>
+
+    <div class="step-progress-wrap" aria-hidden="true">
+      <div class="step-progress-track">
+        <div class="step-progress-fill" id="step-progress-fill"></div>
+      </div>
+    </div>
+
+    <h1 class="dock-title" id="dock-title">—</h1>
+    <p class="dock-screen" id="dock-screen"></p>
+    <p class="dock-voice dock-voice-collapsed" id="dock-voice"></p>
+
+    <div class="mark-reminder" id="overlay-mark-cue" role="status">
+      <span class="mark-reminder-label">At this stop, say</span>
+      <span class="mark-phrase">{{ identification_phrase }}</span>
+      <span class="mark-reminder-label">then narrate</span>
+    </div>
+
+    <div class="walkthrough-actions">
+      <button type="button" class="walk-btn speak" id="btn-speak-step" type="button">
+        🔊 Speak prompt
+      </button>
+      <button type="button" class="walk-btn next-primary" id="btn-next-step">
+        Next step →
+      </button>
+    </div>
+    <p class="walk-hint" id="walk-hint">Finish narrating this area, then tap Next step. Recording continues in the background.</p>
+  </header>
+
+  <section class="video-stage" id="video-stage" aria-label="Camera preview">
+    <video id="rec-preview-video" playsinline webkit-playsinline autoplay muted></video>
+    <p class="overlay-screen video-caption" id="overlay-screen-text"></p>
+  </section>
+
+  <div class="status-strip">
+    <div class="rec-lamp" id="rec-lamp">
+      <span class="dot" aria-hidden="true"></span>
+      <span id="rec-lamp-label">Ready</span>
+    </div>
+    <div class="rec-timer" id="rec-timer" aria-label="Duration">0:00</div>
+  </div>
+
+  <p class="rec-msg" id="rec-msg" role="status"></p>
+  <div class="draft-restore" id="draft-restore" hidden>
+    <p>A previous recording was saved on this device after an upload failure.</p>
+    <button type="button" class="btn btn-secondary" id="btn-restore-draft">Restore &amp; upload</button>
+    <button type="button" class="btn btn-secondary" id="btn-discard-draft">Discard draft</button>
+  </div>
+
+  <div class="upload-progress" id="upload-progress" hidden>
+    <div class="upload-progress-fill" id="upload-progress-fill"></div>
+  </div>
+
+  <nav class="control-dock" aria-label="Recording controls">
+    <button type="button" class="ctrl-btn cam" id="btn-request-permission">📷 Camera</button>
+    <button type="button" class="ctrl-btn record" id="btn-start">● Record</button>
+    <button type="button" class="ctrl-btn pause" id="btn-pause" disabled>⏸ Pause</button>
+    <button type="button" class="ctrl-btn stop" id="btn-stop-upload" disabled>■ Upload</button>
+  </nav>
+
+  <button type="button" class="retry-upload" id="btn-retry-upload" hidden>↻ Retry upload</button>
+
+  {% if selected_report_types %}
+  {% for rt in selected_report_types %}
+  <input type="hidden" data-report-type="{{ rt }}" aria-hidden="true">
+  {% endfor %}
+  {% endif %}
+
+  <details class="checklist-drawer" id="section-checklist">
+    <summary>All sections ({{ merged_sections | length }})</summary>
+    <div class="checklist-body">
+      {% for s in merged_sections %}
+      <article class="checklist-card" data-step-index="{{ s.step_index or loop.index }}">
+        <div class="checklist-card-head">
+          <span class="checklist-num">{{ s.step_index or loop.index }}/{{ s.total_steps or merged_sections | length }}</span>
+          {% if s.required is defined and not s.required %}<span class="optional-tag">Optional</span>{% endif %}
+        </div>
+        <h3>{{ s.name }}</h3>
+        <p class="checklist-rt">{{ s.report_title }}</p>
+        {% if s.on_screen_text %}<p class="checklist-screen">{{ s.on_screen_text }}</p>{% endif %}
+        <button type="button" class="checklist-jump" data-goto-step="{{ s.step_index or loop.index }}">Jump to section</button>
+      </article>
+      {% endfor %}
+    </div>
+  </details>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.JOBDOC_REC = {
+    identificationPhrase: {{ identification_phrase | tojson }},
+    uploadUrl: {{ url_for('upload_video') | tojson }},
+    guidancePlan: {{ guidance_plan | tojson if guidance_plan else 'null' }},
+    reportTypes: {{ selected_report_types | tojson }},
+    sessionStartUrl: {{ url_for('api_guidance_session_start') | tojson }},
+    currentStepUrl: {{ url_for('api_guidance_current_step') | tojson }},
+    nextStepUrl: {{ url_for('api_guidance_advance_step') | tojson }},
+    gotoStepUrl: {{ url_for('api_guidance_goto_step') | tojson }}
+  };
+</script>
+<script src="{{ url_for('static', filename='js/field_recorder.js') }}"></script>
+{% endblock %}

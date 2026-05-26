@@ -1,0 +1,75 @@
+{# Room Report — distinct teal accent for PDF scan; layout mirrors People report. #}
+<style>
+  .rr-root { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: #0f172a; }
+  .rr-doc-header {
+    border-bottom: 3px solid #0f766e;
+    padding-bottom: 14px;
+    margin-bottom: 20px;
+    background: linear-gradient(180deg, #f0fdfa 0%, #fff 100%);
+    padding: 16px 18px 14px;
+    border-radius: 8px 8px 0 0;
+    margin: -2px -2px 20px -2px;
+  }
+  .rr-brand { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #0d9488; font-weight: 700; margin: 0 0 6px; }
+  .rr-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 6px; color: #0f766e; }
+  .rr-meta-row { font-size: 12px; color: #64748b; margin: 0; line-height: 1.5; }
+  .rr-meta-row strong { color: #334155; }
+  .rr-chip { display:inline-block; padding: 3px 10px; border-radius: 999px; background:#ccfbf1; color:#115e59; font-weight:600; font-size:11px; }
+  .rr-section { margin-bottom: 24px; padding: 16px; border: 1px solid #99f6e4; border-radius: 10px; background: #f0fdfa; break-inside: avoid; }
+  .rr-section-title { font-size: 15px; font-weight: 700; margin: 0 0 12px; color: #0f172a; border-left: 4px solid #14b8a6; padding-left: 10px; }
+  .rr-grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
+  @media (min-width: 720px) { .rr-grid { grid-template-columns: minmax(260px, 38%) 1fr; align-items: start; } }
+  .rr-frame { border-radius: 10px; overflow: hidden; border: 1px solid #5eead4; background: #0f172a; min-height: 160px; display:flex; align-items:center; justify-content:center; }
+  .rr-frame img { width: 100%; height: auto; display: block; object-fit: cover; max-height: 280px; }
+  .rr-ph { color: #94a3b8; font-size: 12px; padding: 18px; text-align: center; }
+  .rr-copy { font-size: 12.5px; line-height: 1.6; color: #334155; text-align: justify; }
+  .rr-meta { margin-top: 10px; font-size: 11px; color: #64748b; }
+  .rr-fields { margin-top: 10px; font-size: 11px; color: #475569; }
+  .rr-fields code { background: #ccfbf1; padding: 1px 5px; border-radius: 4px; font-size: 10px; }
+  .rr-footer {
+    margin-top: 28px; padding-top: 14px; border-top: 1px solid #99f6e4;
+    font-size: 10px; color: #94a3b8; text-align: center; line-height: 1.5;
+  }
+</style>
+
+<div class="rr-root">
+  <header class="rr-doc-header">
+    <p class="rr-brand">Site / room assessment</p>
+    <h1 class="rr-title">{{ bundle.title }}</h1>
+    <p class="rr-meta-row"><strong>Generated (UTC):</strong> {{ final.generated_at_utc }}</p>
+    <p class="rr-meta-row"><strong>Source video:</strong> {{ final.video_filename }}</p>
+    <p class="rr-meta-row"><strong>Identification cue:</strong> <span class="rr-chip">{{ final.identification_phrase }}</span></p>
+  </header>
+
+  {% for sec in bundle.sections %}
+  <article class="rr-section">
+    <h2 class="rr-section-title">{{ sec.section_name }}</h2>
+    <div class="rr-grid">
+      <div class="rr-frame">
+        {% if sec.image_uri %}
+          <img src="{{ sec.image_uri }}" alt="Still frame at {{ sec.image_timestamp_sec|round(2) }}s" />
+        {% else %}
+          <div class="rr-ph">No still image available for this section.</div>
+        {% endif %}
+      </div>
+      <div>
+        <div class="rr-copy">{{ sec.summary }}</div>
+        <div class="rr-meta">
+          Narrative anchor {{ sec.timestamp_sec|round(2) }}s · Still frame {{ sec.image_timestamp_sec|round(2) }}s
+        </div>
+        {% if sec.field_values %}
+        <div class="rr-fields"><strong>Structured fields</strong>
+          {% for k,v in sec.field_values.items() %}
+          <div><code>{{ k }}</code>: {{ v }}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </article>
+  {% endfor %}
+
+  <footer class="rr-footer">
+    <p><strong>jobdoc-demo</strong> — AI-guided video report · Internal / demonstration use · Contents reflect automated extraction and require human review where indicated.</p>
+  </footer>
+</div>

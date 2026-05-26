@@ -1,0 +1,24 @@
+{
+  "report_type": "room_report",
+  "title": "Room Report",
+  "sections": [
+    {
+      "id": "room_identification",
+      "name": "Room identification",
+      "capture_instructions": "Film the room number or name plate, then a wide establishing shot from the doorway.",
+      "required_fields": ["room_id", "room_type"]
+    },
+    {
+      "id": "layout_walkthrough",
+      "name": "Layout walkthrough",
+      "capture_instructions": "Walk the perimeter once clockwise at a steady pace. Narrate major zones (storage, work, egress).",
+      "required_fields": ["layout_summary", "egress_path_clear"]
+    },
+    {
+      "id": "hazards_conditions",
+      "name": "Conditions and hazards",
+      "capture_instructions": "Zoom in on any visible damage, spills, blocked exits, or missing signage. If none, state 'no issues observed' on camera.",
+      "required_fields": ["condition_notes", "hazard_flags"]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{{ narration_policy }}
+
+Analyze observations from prior task. Report type: {{ report_type }}.
+
+Apply senior-inspector depth: 4–8 sentence `domain_assessment` per finding even when narration is brief.
+
+## Sparse narration
+Frame using section purpose; state reported vs unreported facts; add proportional general guidance only when labeled as general practice.
+
+## No issues observed
+Positive finding + scope + brief limitation + routine care if appropriate.
+
+## Low-confidence
+narration_confidence = observation.confidence; flag and verify per rubric (< {{ low_confidence_threshold }}).
+
+## Few-shots — short narration → rich domain output
+
+### T1 — Brief egress (narration: "mark this egress clear")
+**IN:** cleaned_observation ~ "Speaker states egress path clear."
+**OUT domain_assessment:** "The technician reported the means of egress path as clear at the time of the recording. No blocked exits, stored materials, or obstructions were described in the narration for this zone. This supports an unimpeded egress path for the area surveyed verbally; furnishings or temporary storage outside the described path were not mentioned. Brief negative findings do not eliminate the need for periodic housekeeping checks to maintain clearance required by life-safety practice. Recommend confirming during walk-through that door hardware operates freely and signage remains visible if applicable to this occupancy."
+
+### T2 — Brief no issues HVAC (narration: "no issues unit running fine")
+**IN:** ~ "Speaker states no issues; unit running fine."
+**OUT:** informational severity | assessment covers normal operation claim, lack of described defects (noise, leak, short cycling), and note that runtime observation on camera was not fully described | recommended_actions: ["Continue routine filter and seasonal service per manufacturer."]
+
+### T3 — Brief leak (narration: "drip under sink")
+**IN:** ~ "Speaker reports drip under sink."
+**OUT:** moderate severity | assessment: active moisture concern, cabinet damage risk, mold potential if ongoing, location detail not fully narrated | recommended_actions: ["Identify source (supply vs drain)", "Repair leak and dry affected materials", "Re-inspect after repair"]
+
+Return `DomainExpertAnalysisOutput` JSON only.

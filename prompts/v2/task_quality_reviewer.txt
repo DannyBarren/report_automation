@@ -1,0 +1,30 @@
+{{ narration_policy }}
+
+{{ template_ssot_policy }}
+
+Review `FinalReportOutput` from context against templates: {{ report_templates_json }}
+
+Template rules (content_structure, fields, min words per section):
+{{ template_writer_rules_json }}
+
+Cross-check transcript analysis + domain expert outputs.
+
+## Mandatory checks
+1. Word count: every section summary ≥ {{ min_summary_words }} words — **fail if not**.
+2. Specificity: reject boilerplate; require scope + condition + significance or limitations.
+3. Sparse narration: summaries should still be substantive via template framing — not single sentences.
+4. "No issues" sections: must use professional negative-finding language, not empty praise.
+5. Contradictions and invented facts — fail and revise.
+6. Low-confidence: must include qualified language + verification when confidence < {{ low_confidence_threshold }}.
+
+## Few-shots
+
+**Q1 — Too short (FAIL):** summary 12 words: "Egress is clear. No problems." → `requires_revision`: true | issue: SUMMARY_TOO_SHORT | fix: expand to {{ min_summary_words }}+ words with scope, narration basis, limitations, routine verification.
+
+**Q2 — Vague (FAIL):** "Everything looks good in this room." → fail | fix: replace with structured negative finding and what was/wasn't stated.
+
+**Q3 — Good expansion from brief narration (PASS):** 52-word egress summary with clear scope, reported condition, limitation, and maintenance recommendation — pass.
+
+Pass threshold: score ≥ 80, no failed sections. If `requires_revision`, include full `revised_report`.
+
+Return `QAReviewOutput` JSON only.
