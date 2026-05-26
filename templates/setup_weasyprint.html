@@ -29,12 +29,12 @@
     border-radius: 12px;
     border: none;
     cursor: pointer;
-    background: #2563eb;
-    color: #fff;
+    background: linear-gradient(180deg, var(--accent) 0%, var(--accent-dim) 100%);
+    color: #05080c;
     text-decoration: none;
-    box-shadow: 0 4px 18px rgba(37, 99, 235, 0.45);
+    box-shadow: 0 4px 18px var(--accent-glow);
   }
-  .btn-fix:hover { filter: brightness(1.08); color: #fff; }
+  .btn-fix:hover { filter: brightness(1.1); color: #05080c; }
   .option-card {
     padding: 1rem 1.1rem;
     margin-bottom: 0.85rem;
@@ -45,7 +45,7 @@
   .option-card h3 {
     margin: 0 0 0.35rem;
     font-size: 1rem;
-    color: #93c5fd;
+    color: var(--accent-bright);
   }
   .option-card p, .option-card ol {
     margin: 0;
@@ -88,8 +88,8 @@
     width: 1.5rem;
     height: 1.5rem;
     border-radius: 50%;
-    background: #2563eb;
-    color: #fff;
+    background: var(--accent-dim);
+    color: var(--text-bright);
     font-size: 0.8rem;
     font-weight: 700;
     margin-right: 0.4rem;
@@ -152,8 +152,8 @@
   <div class="option-card">
     <h3><span class="step-num">A</span> Run as Administrator (recommended if auto fails)</h3>
     <ol>
-      <li>Close JobDoc (Ctrl+C in the black command window).</li>
-      <li>In File Explorer, open the <code>jobdoc-demo</code> folder.</li>
+      <li>Close GenerSwift (Ctrl+C in the command window).</li>
+      <li>In File Explorer, open your project folder (where <code>run_demo.bat</code> lives).</li>
       <li><strong>Right-click</strong> <code>run_demo.bat</code> → <strong>Run as administrator</strong>.</li>
       <li>Approve the UAC prompt (“Do you want to allow this app to make changes?”).</li>
       <li>Wait for <strong>[OK] WeasyPrint is ready</strong> at step [3/4].</li>

@@ -1,0 +1,270 @@
+/*
+ * GenerSwift — global dark UI (bright, sharp type)
+ * A Barren Business Development Product
+ */
+
+:root {
+  --bg: #06080c;
+  --bg-elevated: #0c0f14;
+  --surface: #12161e;
+  --surface-hover: #181d28;
+  --text: #f2f5fa;
+  --text-bright: #ffffff;
+  --muted: #9aa6b8;
+  --muted-dim: #6b7789;
+  --accent: #5eb8ff;
+  --accent-bright: #8ed0ff;
+  --accent-dim: #2a6bb8;
+  --accent-glow: rgba(94, 184, 255, 0.22);
+  --border: #252c38;
+  --border-bright: #3a4556;
+  --success: #4ade9a;
+  --warn: #fbbf24;
+  --danger: #f87171;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --font: "Segoe UI", "Inter", system-ui, -apple-system, sans-serif;
+  --font-display: "Segoe UI", "Inter", system-ui, sans-serif;
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.55);
+  --brand-gradient: linear-gradient(135deg, #f2f5fa 0%, #8ed0ff 55%, #5eb8ff 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font);
+  font-size: 1rem;
+  background: var(--bg);
+  background-image:
+    radial-gradient(ellipse 120% 80% at 50% -30%, rgba(94, 184, 255, 0.08), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(42, 107, 184, 0.06), transparent 50%);
+  color: var(--text);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: var(--accent-bright);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+a:hover {
+  color: var(--text-bright);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wrap {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1.25rem max(1rem, env(safe-area-inset-left)) 2rem max(1rem, env(safe-area-inset-right));
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.wrap--wide {
+  max-width: 1040px;
+}
+
+/* —— Brand bar —— */
+.site-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-bottom: 1.35rem;
+  padding-bottom: 1.15rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.site-brand__link {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  text-decoration: none !important;
+  width: fit-content;
+}
+
+.site-brand__link:hover .brand-name {
+  filter: brightness(1.08);
+}
+
+.brand-name {
+  font-family: var(--font-display);
+  font-size: clamp(1.35rem, 4vw, 1.65rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.brand-tagline {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* —— Page header (below brand) —— */
+.page-header {
+  margin-bottom: 1.35rem;
+}
+
+.page-header h1 {
+  font-size: clamp(1.1rem, 3vw, 1.28rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.35rem;
+  color: var(--text-bright);
+}
+
+.page-header p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.page-header p strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+main {
+  flex: 1;
+}
+
+/* —— Footer credit —— */
+.site-footer {
+  margin-top: 2.5rem;
+  padding-top: 1.15rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.site-footer .brand-name {
+  font-size: 0.95rem;
+}
+
+.site-footer .brand-tagline {
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+}
+
+.site-footer__copy {
+  font-size: 0.78rem;
+  color: var(--muted-dim);
+  margin: 0;
+}
+
+/* —— Components —— */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.35rem;
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow-lg);
+}
+
+.card h2,
+.card h3 {
+  color: var(--text-bright);
+  letter-spacing: -0.02em;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 1.2rem;
+  border-radius: var(--radius-sm);
+  border: none;
+  font-size: 0.98rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: linear-gradient(180deg, var(--accent) 0%, var(--accent-dim) 100%);
+  color: #05080c;
+  letter-spacing: -0.01em;
+  box-shadow: 0 2px 12px var(--accent-glow);
+  transition: filter 0.15s ease, transform 0.1s ease;
+}
+
+.btn:hover {
+  filter: brightness(1.1);
+  text-decoration: none;
+  color: #05080c;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border-bright);
+  box-shadow: none;
+}
+
+.btn-secondary:hover {
+  border-color: var(--accent);
+  color: var(--accent-bright);
+  background: rgba(94, 184, 255, 0.06);
+}
+
+.flash {
+  padding: 0.8rem 1rem;
+  border-radius: var(--radius-sm);
+  margin-bottom: 1rem;
+  background: rgba(42, 107, 184, 0.2);
+  border: 1px solid var(--accent-dim);
+  color: var(--text-bright);
+  font-weight: 500;
+}
+
+ul.plain {
+  padding-left: 1.1rem;
+  color: var(--muted);
+}
+
+code {
+  background: var(--bg-elevated);
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.86em;
+  color: var(--accent-bright);
+  border: 1px solid var(--border);
+}
+
+h2, h3 {
+  color: var(--text-bright);
+}
+
+p {
+  color: var(--text);
+}
+
+strong {
+  color: var(--text-bright);
+  font-weight: 600;
+}
