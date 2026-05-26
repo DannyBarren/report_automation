@@ -643,7 +643,7 @@ def health():
     return jsonify(
         {
             "ok": keys_ok and pdf_ok,
-            "service": "jobdoc-demo",
+            "service": "GenerSwift",
             "pipeline": get_jobdoc_pipeline(),
             "keys": {
                 "DEEPGRAM_API_KEY": _env_token_present("DEEPGRAM_API_KEY"),

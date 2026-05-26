@@ -3,89 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>{% block title %}jobdoc-demo{% endblock %} — Guided video reports</title>
-    <style>
-        /*
-          Minimal MVP styling — no external assets yet (static/ is reserved).
-          Typography and spacing kept readable for field use on tablets.
-        */
-        :root {
-            --bg: #0f1419;
-            --surface: #1a2332;
-            --text: #e8eef4;
-            --muted: #8b9cb3;
-            --accent: #3d8bfd;
-            --accent-dim: #2654a3;
-            --border: #2a3545;
-            --success: #3ecf8e;
-        }
-        * { box-sizing: border-box; }
-        body {
-            margin: 0;
-            min-height: 100vh;
-            font-family: "Segoe UI", system-ui, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            line-height: 1.5;
-        }
-        a { color: var(--accent); text-decoration: none; }
-        a:hover { text-decoration: underline; }
-        .wrap {
-            max-width: 720px;
-            margin: 0 auto;
-            padding: 1.5rem max(1rem, env(safe-area-inset-left)) 3rem max(1rem, env(safe-area-inset-right));
-        }
-        .wrap--wide { max-width: 1040px; }
-        header {
-            border-bottom: 1px solid var(--border);
-            margin-bottom: 1.5rem;
-            padding-bottom: 1rem;
-        }
-        header h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 0.25rem; }
-        header p { margin: 0; color: var(--muted); font-size: 0.9rem; }
-        .card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 1.25rem;
-            margin-bottom: 1rem;
-        }
-        .btn {
-            display: inline-block;
-            padding: 0.6rem 1.1rem;
-            border-radius: 8px;
-            border: none;
-            font-size: 1rem;
-            cursor: pointer;
-            background: var(--accent);
-            color: #fff;
-            font-weight: 500;
-        }
-        .btn:hover { background: var(--accent-dim); }
-        .btn-secondary {
-            background: transparent;
-            color: var(--text);
-            border: 1px solid var(--border);
-        }
-        .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
-        .flash {
-            padding: 0.75rem 1rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-            background: var(--accent-dim);
-            border: 1px solid var(--accent);
-        }
-        ul.plain { padding-left: 1.1rem; color: var(--muted); }
-        code { background: var(--bg); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.85em; }
-    </style>
+    <meta name="theme-color" content="#06080c">
+    <meta name="color-scheme" content="dark">
+    <title>{% block title %}Home{% endblock %} · GenerSwift</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
     {% block head %}{% endblock %}
 </head>
 <body>
     <div class="wrap{% block wrap_class %}{% endblock %}">
-        <header>
-            <h1>{% block header_title %}jobdoc-demo{% endblock %}</h1>
-            <p>{% block header_subtitle %}AI-guided video field reports{% endblock %}</p>
+        <header class="site-brand" role="banner">
+            <a href="{{ url_for('index') }}" class="site-brand__link" aria-label="GenerSwift home">
+                <span class="brand-name">GenerSwift</span>
+                <span class="brand-tagline">A Barren Business Development Product</span>
+            </a>
         </header>
+
+        <div class="page-header">
+            <h1>{% block header_title %}Guided video reports{% endblock %}</h1>
+            <p>{% block header_subtitle %}AI-guided field capture and structured PDF output{% endblock %}</p>
+        </div>
 
         {% with messages = get_flashed_messages() %}
             {% if messages %}
@@ -98,6 +34,14 @@
         <main>
             {% block content %}{% endblock %}
         </main>
+
+        <footer class="site-footer" role="contentinfo">
+            <div>
+                <span class="brand-name">GenerSwift</span>
+                <span class="brand-tagline">A Barren Business Development Product</span>
+            </div>
+            <p class="site-footer__copy">© Barren Business Development</p>
+        </footer>
     </div>
     {% block scripts %}{% endblock %}
 </body>

@@ -1,15 +1,15 @@
 /* field_recorder.css — mobile field recording UI */
 
 .field-rec {
-  --rec-accent: #3d8bfd;
-  --rec-danger: #ef4444;
-  --rec-ok: #22c55e;
+  --rec-accent: #5eb8ff;
+  --rec-danger: #f87171;
+  --rec-ok: #4ade9a;
   --rec-warn: #fbbf24;
-  --rec-surface: #0c1220;
-  --rec-panel: #151d2e;
-  --rec-text: #f1f5f9;
-  --rec-muted: #94a3b8;
-  --rec-border: #2a3548;
+  --rec-surface: #0c0f14;
+  --rec-panel: #12161e;
+  --rec-text: #f2f5fa;
+  --rec-muted: #9aa6b8;
+  --rec-border: #252c38;
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
   padding-bottom: calc(7.5rem + var(--safe-b));
@@ -51,7 +51,7 @@
   z-index: 40;
   margin: 0 -0.25rem 0.75rem;
   padding: 0.85rem 1rem 1rem;
-  background: linear-gradient(180deg, #1a2744 0%, var(--rec-panel) 100%);
+  background: linear-gradient(180deg, #151d2e 0%, var(--rec-panel) 100%);
   border: 2px solid var(--rec-accent);
   border-radius: 14px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
@@ -145,7 +145,7 @@
 .step-progress-fill {
   height: 100%;
   width: 8%;
-  background: linear-gradient(90deg, #2563eb, #3b82f6);
+  background: linear-gradient(90deg, #2a6bb8, #5eb8ff);
   border-radius: 999px;
   transition: width 0.35s ease;
 }
