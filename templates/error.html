@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} · {{ title }}{% endblock %}
+{% block header_title %}{{ title }}{% endblock %}
+{% block header_subtitle %}Error {{ code }}{% endblock %}
+
+{% block content %}
+<div class="card" style="text-align:center;">
+    <div style="font-size:3rem;font-weight:800;letter-spacing:-0.04em;color:var(--accent-bright);margin-bottom:0.4rem;">{{ code }}</div>
+    <h2 style="margin:0 0 0.5rem;">{{ title }}</h2>
+    <p style="margin:0 0 1.25rem;color:var(--muted);line-height:1.5;">{{ message }}</p>
+    <a class="btn btn-lg" href="{{ url_for('index') }}">Start a new report</a>
+</div>
+{% endblock %}

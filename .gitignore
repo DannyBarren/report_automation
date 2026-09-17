@@ -1,0 +1,11 @@
+.env
+gtk3/
+instance/
+*.part
+__pycache__/
+*.py[cod]
+.pytest_cache/
+reports_output/
+reports_output/demo_smoke_*
+uploads/
+.venv/

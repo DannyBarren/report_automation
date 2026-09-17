@@ -1,0 +1,826 @@
+{% extends "base.html" %}
+{% block title %}Your report{% endblock %}
+{% block wrap_class %} wrap--wide{% endblock %}
+{% block header_title %}Review &amp; generate{% endblock %}
+{% block header_subtitle %}{{ selected_titles | join(' + ') if selected_titles else 'Your report' }} — process the recording, review sections, and download the PDF.{% endblock %}
+
+{% block head %}
+<style>
+    /* —— Processing stepper —— */
+    .steps { display: grid; gap: 0.5rem; margin: 0.5rem 0 1rem; padding: 0; list-style: none; }
+    .steps li {
+        display: grid; grid-template-columns: 1.9rem 1fr auto; gap: 0.55rem 0.7rem; align-items: start;
+        font-size: 0.93rem; padding: 0.6rem 0.7rem; border-radius: var(--radius-sm);
+        background: var(--surface-2); border: 1px solid transparent; transition: all 0.2s;
+    }
+    .steps li .ic {
+        width: 1.9rem; height: 1.9rem; border-radius: 999px; display: grid; place-items: center;
+        font-size: 0.85rem; font-weight: 800; background: var(--bg-elevated); border: 1px solid var(--border-bright); color: var(--muted);
+    }
+    .steps li.pending { color: var(--muted); }
+    .steps li.running { border-color: var(--accent); background: rgba(34,211,238,0.08); }
+    .steps li.running .ic { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+    .steps li.completed .ic { background: var(--success); color: #04130c; border-color: transparent; }
+    .steps li.failed { border-color: var(--danger); }
+    .steps li.failed .ic { background: var(--danger); color: #fff; border-color: transparent; }
+    .steps .lbl { font-weight: 600; align-self: center; }
+    .steps .sub { grid-column: 2 / -1; font-size: 0.82rem; color: var(--muted); line-height: 1.35; }
+
+    .status-strip { display: flex; flex-wrap: wrap; gap: 0.6rem 0.9rem; align-items: center; margin-bottom: 0.85rem; }
+    .mono { font-size: 0.85rem; word-break: break-word; }
+
+    .current-step-banner {
+        padding: 0.85rem 1rem; border-radius: var(--radius-sm); border: 1px solid rgba(34,211,238,0.4);
+        background: rgba(34,211,238,0.08); margin-bottom: 1rem;
+    }
+    .current-step-banner .step-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent-bright); margin: 0 0 0.25rem; }
+    .current-step-banner .step-title { font-weight: 700; margin: 0 0 0.3rem; font-size: 1.05rem; }
+    .current-step-banner .step-desc { margin: 0; color: var(--muted); font-size: 0.92rem; line-height: 1.45; }
+
+    /* —— Video + mark timeline —— */
+    .video-card video { width: 100%; max-height: min(52vh, 420px); border-radius: var(--radius-sm); background: #000; border: 1px solid var(--border); }
+    .video-card .vid-actions { margin-top: 0.65rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+    .mark-timeline { margin-top: 0.75rem; padding: 0.6rem 0.65rem; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-elevated); overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .mark-timeline-track { display: flex; gap: 0.5rem; min-width: min-content; }
+    .mark-chip {
+        flex: 0 0 auto; max-width: 220px; text-align: left; padding: 0.45rem 0.65rem; border-radius: var(--radius-sm);
+        border: 1px solid var(--border-bright); background: var(--surface); color: var(--text); cursor: pointer; font-size: 0.78rem; line-height: 1.3; transition: all 0.15s;
+    }
+    .mark-chip:hover { border-color: var(--accent); background: var(--surface-hover); }
+    .mark-chip .t { font-family: ui-monospace, monospace; font-weight: 700; color: var(--accent-bright); font-size: 0.85rem; }
+    .mark-chip .lbl { display: block; margin-top: 0.2rem; color: var(--muted); }
+
+    /* —— Still frames —— */
+    .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 0.85rem; margin-top: 0.75rem; }
+    .gallery-grid figure { margin: 0; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; }
+    .gallery-grid .thumb-wrap { aspect-ratio: 4 / 3; background: #000; }
+    .gallery-grid img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .gallery-grid figcaption { font-size: 0.78rem; color: var(--muted); padding: 0.45rem 0.55rem 0.6rem; line-height: 1.35; flex: 1; }
+
+    /* —— Review —— */
+    .review-toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: center; margin: 0.6rem 0 0.25rem; }
+    .review-toolbar .btn { min-height: 2.7rem; }
+    .review-counts { font-size: 0.82rem; color: var(--muted); }
+    .review-counts b { color: var(--text-bright); }
+    .review-list { display: grid; gap: 0.7rem; margin: 0.85rem 0 0; }
+    .review-row { padding: 0.85rem 0.95rem; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-2); transition: opacity 0.2s, border-color 0.2s; }
+    .review-row.flagged { border-color: rgba(251,191,36,0.55); }
+    .review-row.accepted { opacity: 0.6; border-color: rgba(52,211,153,0.55); }
+    .review-row.accepted .review-note-input, .review-row.accepted label { display: none; }
+    .review-row h4 { margin: 0 0 0.4rem; font-size: 0.98rem; display: flex; justify-content: space-between; gap: 0.5rem; align-items: center; }
+    .conf-chip { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.18rem 0.55rem; border-radius: 999px; white-space: nowrap; }
+    .conf-chip.hi { background: var(--success-dim); color: #6ee7b7; border: 1px solid rgba(52,211,153,0.5); }
+    .conf-chip.lo { background: var(--warn-dim); color: #fcd34d; border: 1px solid rgba(251,191,36,0.5); }
+    .review-flags { font-size: 0.76rem; color: #fcd34d; margin-bottom: 0.35rem; }
+    .review-preview { font-size: 0.85rem; color: var(--muted); margin: 0 0 0.6rem; line-height: 1.45; }
+    .review-row textarea { width: 100%; min-height: 2.6rem; font-size: 0.9rem; border-radius: var(--radius-sm); border: 1px solid var(--border-bright); background: var(--bg-elevated); color: var(--text); padding: 0.5rem 0.6rem; font-family: inherit; }
+    .review-row textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+
+    /* —— Generate / PDF —— */
+    .gen-area { position: relative; }
+    .gen-area.is-loading .btn { opacity: 0.55; pointer-events: none; }
+    .spinner { display: none; width: 1rem; height: 1rem; border: 2px solid rgba(0,0,0,0.25); border-top-color: var(--accent-ink); border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: -2px; margin-right: 0.35rem; }
+    .gen-area.is-loading .spinner { display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .total-time { font-size: 0.84rem; color: var(--muted); margin-top: 0.6rem; }
+    .total-time b { color: #6ee7b7; }
+
+    .rp-hero-cta { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0 0 0.5rem; }
+    .rp-hero-cta .btn { flex: 1 1 160px; }
+
+    /* —— Acceleration —— */
+    .accel-card { display: flex; align-items: center; gap: 0.7rem; }
+    .accel-card .accel-dot { width: 0.85rem; height: 0.85rem; border-radius: 50%; background: var(--muted-dim); flex: 0 0 auto; }
+    .accel-card.accel-on { border-color: rgba(52,211,153,0.5); background: var(--success-dim); }
+    .accel-card.accel-on .accel-dot { background: var(--success); box-shadow: 0 0 0 4px rgba(52,211,153,0.18); }
+
+    .key-state { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--success); }
+
+    /* —— Success state —— */
+    .success-card { border-color: rgba(52,211,153,0.5); background: linear-gradient(160deg, var(--success-dim), var(--surface)); text-align: center; }
+    .success-burst {
+        width: 3.4rem; height: 3.4rem; margin: 0 auto 0.75rem; border-radius: 999px; display: grid; place-items: center;
+        font-size: 1.6rem; font-weight: 900; color: #04130c; background: var(--success);
+        box-shadow: 0 0 0 8px rgba(52,211,153,0.18); animation: pop-in 0.5s ease;
+    }
+    @keyframes pop-in { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.12); } 100% { transform: scale(1); opacity: 1; } }
+    .success-card .rp-hero-cta { justify-content: center; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rp-wrap">
+    {# Celebratory success state — revealed by JS the moment the PDF is ready #}
+    <div class="card success-card" id="report-ready-banner" style="display:{% if job_status.get('pdf_filename') %}block{% else %}none{% endif %};">
+        <div class="success-burst" aria-hidden="true">✓</div>
+        <h2 style="margin:0 0 0.3rem;font-size:1.35rem;">Your report is ready</h2>
+        <p style="margin:0 0 1rem;color:var(--muted);font-size:0.95rem;">
+            {{ selected_titles | join(' + ') if selected_titles else 'Report' }} — generated, frames placed, PDF built.
+        </p>
+        <div class="rp-hero-cta">
+            <a class="btn btn-lg" id="success-pdf-btn"
+               href="{{ url_for('download_report', video_id=video_id) }}">⬇ Download PDF</a>
+            {% if capture_session_id %}
+            <a class="btn btn-secondary" href="{{ url_for('job_info_summary_view', session_id=capture_session_id) }}">📝 Job Info Summary</a>
+            {% endif %}
+            <a class="btn btn-secondary" href="{{ url_for('index') }}">+ Start new report</a>
+        </div>
+        {% if capture_session_id %}
+        <p style="margin:0.75rem 0 0;font-size:0.82rem;color:var(--muted);">
+            A plain-language Job Info Summary is being written automatically — open it any time from the button above or the client’s profile.
+        </p>
+        {% endif %}
+    </div>
+
+    {# Top actions — Download PDF (unlocks after generation) + start fresh #}
+    <div class="card">
+        <div class="rp-hero-cta">
+            <a class="btn btn-lg {% if not job_status.get('pdf_filename') %}is-disabled{% endif %}"
+               id="hero-pdf-btn"
+               href="{{ url_for('download_report', video_id=video_id) }}"
+               {% if not job_status.get('pdf_filename') %}aria-disabled="true" onclick="return false;"{% endif %}
+            >⬇ Download PDF</a>
+            <a class="btn btn-secondary" id="hero-restart-btn" href="{{ url_for('index') }}">+ New report</a>
+        </div>
+        <p style="margin:0;font-size:0.86rem;color:var(--muted);">
+            The PDF unlocks once generation completes below.
+        </p>
+    </div>
+
+    {# Processing status — the live pipeline tracker #}
+    <div class="card">
+        <div class="status-strip">
+            <span class="pill{% if job_status.get('status') == 'completed' %} ok{% elif job_status.get('status') == 'failed' %} bad{% elif job_status.get('status') == 'running' %} run{% endif %}" id="job-pill">{{ job_status.get('status', 'ready') }}</span>
+            <span id="job-detail" class="mono" style="color:var(--muted);">{{ job_status.get('detail', '') }}</span>
+        </div>
+
+        <div class="current-step-banner" id="current-step-box" style="display:none;">
+            <p class="step-label">Working on</p>
+            <p class="step-title" id="current-step-title">—</p>
+            <p class="step-desc" id="current-step-desc">—</p>
+        </div>
+
+        <div class="prog-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="prog-bar">
+            <div class="prog-fill" id="prog-fill"></div>
+        </div>
+
+        <ul class="steps" id="steps-list">
+            {% set steps = job_status.get('pipeline_steps') %}
+            {% if steps %}
+                {% for s in steps %}
+                <li class="{{ s.get('status','pending') }}" data-id="{{ s.get('id','') }}">
+                    <span class="ic">{% if s.get('status') == 'completed' %}✓{% elif s.get('status') == 'running' %}●{% elif s.get('status') == 'failed' %}✕{% else %}○{% endif %}</span>
+                    <span class="lbl">{{ s.get('label') }}</span>
+                    <span></span>
+                    {% if s.get('description') %}<span class="sub">{{ s.get('description') }}</span>{% endif %}
+                </li>
+                {% endfor %}
+            {% else %}
+                <li class="pending"><span class="ic">○</span><span class="lbl">Transcription</span><span></span></li>
+                <li class="pending"><span class="ic">○</span><span class="lbl">Analysis</span><span></span></li>
+                <li class="pending"><span class="ic">○</span><span class="lbl">Frames</span><span></span></li>
+                <li class="pending"><span class="ic">○</span><span class="lbl">Review ready</span><span></span></li>
+            {% endif %}
+        </ul>
+
+        <div id="pipeline-notes" class="alert-info" style="display:{% if job_status.get('pipeline_notes') or job_status.get('demo_notes') %}block{% else %}none{% endif %};">
+            <strong>Pipeline notes</strong>
+            <ul id="pipeline-notes-list">
+                {% for n in (job_status.get('pipeline_notes') or job_status.get('demo_notes') or []) %}
+                <li>{{ n }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div id="friendly-err" class="alert-soft" style="display:{% if job_status.get('friendly_error') %}block{% else %}none{% endif %};">
+            {{ job_status.get('friendly_error') or '' }}
+        </div>
+    </div>
+
+    {% if is_v2 %}
+    <div class="card review-card" id="review-card" style="display:{% if job_status.get('status') in ('awaiting_review', 'completed', 'partial') and review_items %}block{% else %}none{% endif %};">
+        <h2 style="margin:0 0 0.35rem;font-size:1.15rem;">Review sections</h2>
+        <p style="margin:0 0 0.5rem;color:var(--muted);font-size:0.92rem;">
+            Accept the high-confidence sections in one tap, then add notes only where flagged.
+        </p>
+        <div id="low-conf-banner" class="alert-soft" style="display:{% if low_confidence_messages %}block{% else %}none{% endif %};">
+            <ul id="low-conf-list" style="margin:0;padding-left:1.1rem;">
+                {% for msg in low_confidence_messages %}
+                <li>{{ msg }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="review-toolbar">
+            <button type="button" class="btn btn-secondary" id="btn-accept-high">✓ Accept all high-confidence</button>
+            <span class="review-counts" id="review-counts"></span>
+        </div>
+        <div class="review-list" id="review-list">
+            {% for item in review_items %}
+            <div class="review-row{% if item.flags %} flagged{% endif %}"
+                 data-report-type="{{ item.report_type }}"
+                 data-section-id="{{ item.section_id }}"
+                 data-high="{{ '1' if item.high_confidence else '0' }}">
+                <h4>{{ item.section_name }}
+                    <span class="conf-chip {{ 'hi' if item.high_confidence else 'lo' }}">
+                        {% if item.high_confidence %}High confidence{% elif item.confidence is not none %}{{ (item.confidence * 100) | round | int }}%{% else %}Review{% endif %}
+                    </span>
+                </h4>
+                {% if item.flags %}
+                <div class="review-flags">{{ item.flags | join(' · ') }}</div>
+                {% endif %}
+                <p class="review-preview">{{ item.summary_preview }}…</p>
+                <label style="font-size:0.78rem;color:var(--muted);">Inspector note (optional)</label>
+                <textarea class="review-note-input" placeholder="Add clarification for the client PDF…">{{ item.user_note }}</textarea>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# Run pipeline / generate #}
+    <div class="card gen-area" id="gen-area">
+        <h2 style="margin:0 0 0.5rem;font-size:1.12rem;">Generate</h2>
+        <form method="post" action="{{ url_for('generate_report') }}" id="gen-form">
+            <input type="hidden" name="video_id" value="{{ video_id }}">
+            <input type="hidden" name="saved_filename" value="{{ saved_filename }}">
+            <input type="hidden" name="pipeline_stage" id="pipeline-stage" value="full">
+            <input type="hidden" name="review_notes" id="review-notes-json" value="">
+            {% for rt in selected_report_types %}
+                <input type="hidden" name="report_types" value="{{ rt }}">
+            {% endfor %}
+            <label style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.85rem;font-size:0.9rem;color:var(--muted);cursor:pointer;">
+                <input type="checkbox" name="pdf_mode" value="light" id="pdf-mode-light">
+                Light / Fast PDF — smaller images, quicker to build &amp; download (great on cellular)
+            </label>
+            <div style="display:flex;flex-wrap:wrap;gap:0.65rem;">
+                {% if is_v2 %}
+                <button type="submit" class="btn btn-secondary" id="btn-analyze" data-stage="analysis">
+                    <span class="spinner" aria-hidden="true"></span>
+                    1 · Analyze recording
+                </button>
+                <button type="submit" class="btn" id="gen-btn" data-stage="pdf">
+                    <span class="spinner" aria-hidden="true"></span>
+                    2 · Generate PDF
+                </button>
+                {% else %}
+                <button type="submit" class="btn" id="gen-btn" data-stage="full">
+                    <span class="spinner" aria-hidden="true"></span>
+                    Generate report
+                </button>
+                {% endif %}
+            </div>
+        </form>
+        <p id="gen-hint" style="margin:0.7rem 0 0;font-size:0.86rem;color:var(--muted);">
+            {% if is_v2 %}Step 1 builds a draft you can review. Step 2 applies your notes and creates the PDF.{% else %}Runs the full pipeline in one step.{% endif %}
+        </p>
+        <p id="total-time" class="total-time" style="display:none;"></p>
+        <pre id="gen-result" class="mono" style="margin-top:1rem;padding:1rem;background:var(--bg-elevated);border-radius:var(--radius-sm);overflow:auto;max-height:180px;display:none;border:1px solid var(--border);"></pre>
+    </div>
+
+    {# Still frames #}
+    <div class="card">
+        <h2 style="margin:0 0 0.5rem;font-size:1.12rem;">Still frames</h2>
+        <p style="color:var(--muted);margin:0 0 0.5rem;font-size:0.92rem;">
+            One frame per matched section — extracted at the timestamp aligned with your narration.
+        </p>
+        {% if frame_gallery %}
+        <div class="gallery-grid">
+            {% for g in frame_gallery %}
+            <figure>
+                <div class="thumb-wrap">
+                    <a href="{{ g.url }}" target="_blank" rel="noopener"><img src="{{ g.url }}" alt="{{ g.label }}" loading="lazy" /></a>
+                </div>
+                <figcaption>{{ g.label }}</figcaption>
+            </figure>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color:var(--muted);margin:0;font-size:0.92rem;">Frames appear here after you generate the report.</p>
+        {% endif %}
+    </div>
+
+    {# Original recording + mark timeline #}
+    <div class="card video-card">
+        <h2 style="margin:0 0 0.6rem;font-size:1.1rem;">Original recording</h2>
+        <video id="orig-video" controls playsinline preload="metadata" style="max-width:100%;">
+            <source src="{{ url_for('serve_uploaded_video', video_id=video_id) }}" />
+            Your browser does not support embedded video.
+        </video>
+        <div class="vid-actions">
+            <button type="button" class="btn btn-secondary" id="btn-play-video">▶ Play</button>
+            <span style="font-size:0.82rem;color:var(--muted);" class="mono">{{ saved_filename }}</span>
+        </div>
+        <div id="mark-timeline-wrap" style="margin-top:1rem;">
+            <p style="margin:0 0 0.35rem;font-size:0.9rem;font-weight:600;">“Mark this.” timeline</p>
+            <p style="margin:0 0 0.5rem;font-size:0.82rem;color:var(--muted);">Cue start times (tap to seek). Populates after report generation.</p>
+            <div class="mark-timeline" id="mark-timeline">
+                <div class="mark-timeline-track" id="mark-timeline-track">
+                    {% for m in mark_moments %}
+                    <button type="button" class="mark-chip" data-t="{{ m.t_sec }}" title="Seek to {{ m.time_display }}">
+                        <span class="t">{{ m.time_display }}</span>
+                        <span class="lbl">{{ m.label }}</span>
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+            <p id="mark-timeline-empty" style="margin:0.5rem 0 0;font-size:0.82rem;color:var(--muted);{% if mark_moments %}display:none;{% endif %}">
+                No cues yet — run <strong>Generate</strong> above.
+            </p>
+        </div>
+    </div>
+
+    {# Supporting: acceleration + API keys (collapsible to keep the flow clean) #}
+    <details class="disclosure">
+        <summary>Processing hardware
+            <span class="badge {{ 'ok' if acceleration and acceleration.media_mode == 'gpu' else 'info' }}" style="text-transform:none;">
+                {{ 'GPU accelerated' if acceleration and acceleration.media_mode == 'gpu' else 'CPU' }}
+            </span>
+        </summary>
+        <div class="disclosure-body">
+            <div class="accel-card {% if acceleration and acceleration.media_mode == 'gpu' %}accel-on{% endif %}" id="accel-card">
+                <span class="accel-dot" aria-hidden="true"></span>
+                <div>
+                    <p style="margin:0;font-weight:700;font-size:0.95rem;" id="accel-label">{{ acceleration.label if acceleration else 'Detecting hardware…' }}</p>
+                    <p style="margin:0.15rem 0 0;font-size:0.84rem;color:var(--muted);line-height:1.4;">
+                        {% if acceleration and acceleration.media_mode == 'gpu' %}
+                        Video normalization &amp; still-frame extraction run on the GPU (NVDEC/NVENC) — media steps are noticeably faster.
+                        {% else %}
+                        Running on CPU — fully functional; video steps are slower. Select a GPU tier in Space Settings to accelerate.
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </details>
+
+    <details class="disclosure" id="keys-card"{% if not (key_status and key_status.DEEPGRAM_API_KEY.present and key_status.OPENAI_API_KEY.present) %} open{% endif %}>
+        <summary>API keys
+            <span class="badge {{ 'ok' if key_status and key_status.DEEPGRAM_API_KEY.present and key_status.OPENAI_API_KEY.present else 'warn' }}" style="text-transform:none;">
+                {{ 'Ready' if key_status and key_status.DEEPGRAM_API_KEY.present and key_status.OPENAI_API_KEY.present else 'Needed' }}
+            </span>
+        </summary>
+        <div class="disclosure-body">
+            <p style="margin:0 0 0.75rem;font-size:0.86rem;color:var(--muted);line-height:1.45;">
+                Stored server-side for this browser session only and never shown back.
+                <a href="https://console.deepgram.com/" target="_blank" rel="noopener">Deepgram</a> ·
+                <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">OpenAI</a>.
+            </p>
+            <div class="keys-grid" style="display:grid;gap:0.7rem;">
+                <label class="field" style="margin:0;font-size:0.82rem;color:var(--muted);">Deepgram API key
+                    <span class="key-state" id="dg-state">{{ 'set (' ~ key_status.DEEPGRAM_API_KEY.source ~ ')' if key_status and key_status.DEEPGRAM_API_KEY.present else 'not set' }}</span>
+                    <input class="input" type="password" id="dg-key" autocomplete="off" style="margin-top:0.25rem;" placeholder="{{ 'Configured via Space secret — leave blank' if key_status and key_status.DEEPGRAM_API_KEY.source == 'space' else 'dg_…' }}">
+                </label>
+                <label class="field" style="margin:0;font-size:0.82rem;color:var(--muted);">OpenAI API key
+                    <span class="key-state" id="an-state">{{ 'set (' ~ key_status.OPENAI_API_KEY.source ~ ')' if key_status and key_status.OPENAI_API_KEY.present else 'not set' }}</span>
+                    <input class="input" type="password" id="an-key" autocomplete="off" style="margin-top:0.25rem;" placeholder="{{ 'Configured via Space secret — leave blank' if key_status and key_status.OPENAI_API_KEY.source == 'space' else 'sk-…' }}">
+                </label>
+            </div>
+            <div style="margin-top:0.75rem;display:flex;gap:0.5rem;align-items:center;">
+                <button type="button" class="btn btn-secondary" id="btn-save-keys">Save keys</button>
+                <span id="keys-msg" style="font-size:0.85rem;color:var(--muted);"></span>
+            </div>
+        </div>
+    </details>
+
+    {# Hidden meta for JS #}
+    <p style="display:none;"><span id="pdf-btn-anchor"></span></p>
+    <a class="is-disabled" id="pdf-btn" href="{{ url_for('download_report', video_id=video_id) }}" hidden></a>
+    <span id="pdf-hint" hidden></span>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var pill = document.getElementById('job-pill');
+    var detail = document.getElementById('job-detail');
+    var pdfBtn = document.getElementById('pdf-btn');
+    var heroPdf = document.getElementById('hero-pdf-btn');
+    var pdfHint = document.getElementById('pdf-hint');
+    var progFill = document.getElementById('prog-fill');
+    var progBar = document.getElementById('prog-bar');
+    var stepsEl = document.getElementById('steps-list');
+    var friendly = document.getElementById('friendly-err');
+    var pipelineNotes = document.getElementById('pipeline-notes');
+    var pipelineNotesList = document.getElementById('pipeline-notes-list');
+    var curBox = document.getElementById('current-step-box');
+    var curTitle = document.getElementById('current-step-title');
+    var curDesc = document.getElementById('current-step-desc');
+    var videoEl = document.getElementById('orig-video');
+    var btnPlay = document.getElementById('btn-play-video');
+    var genArea = document.getElementById('gen-area');
+    var markTrack = document.getElementById('mark-timeline-track');
+    var markEmpty = document.getElementById('mark-timeline-empty');
+
+    var pollTimer = null;
+    var reviewCard = document.getElementById('review-card');
+    var reviewList = document.getElementById('review-list');
+    var lowConfBanner = document.getElementById('low-conf-banner');
+    var lowConfList = document.getElementById('low-conf-list');
+    var pipelineStageInput = document.getElementById('pipeline-stage');
+    var reviewNotesInput = document.getElementById('review-notes-json');
+    var isV2 = {{ 'true' if is_v2 else 'false' }};
+
+    function collectReviewNotes() {
+        if (!reviewList) return '[]';
+        var rows = [];
+        reviewList.querySelectorAll('.review-row').forEach(function (row) {
+            var ta = row.querySelector('.review-note-input');
+            rows.push({
+                report_type: row.getAttribute('data-report-type'),
+                section_id: row.getAttribute('data-section-id'),
+                user_note: ta ? ta.value.trim() : ''
+            });
+        });
+        return JSON.stringify(rows);
+    }
+
+    function confChip(item) {
+        if (item.high_confidence) return '<span class="conf-chip hi">High confidence</span>';
+        if (item.confidence !== null && item.confidence !== undefined) {
+            return '<span class="conf-chip lo">' + Math.round(item.confidence * 100) + '%</span>';
+        }
+        return '<span class="conf-chip lo">Review</span>';
+    }
+
+    function renderReviewItems(items, lowMsgs) {
+        if (!reviewList || !items || !items.length) return;
+        if (reviewCard) reviewCard.style.display = 'block';
+        reviewList.innerHTML = '';
+        items.forEach(function (item) {
+            var div = document.createElement('div');
+            div.className = 'review-row' + (item.flags && item.flags.length ? ' flagged' : '');
+            div.setAttribute('data-report-type', item.report_type || '');
+            div.setAttribute('data-section-id', item.section_id || '');
+            div.setAttribute('data-high', item.high_confidence ? '1' : '0');
+            var flags = (item.flags || []).join(' · ');
+            div.innerHTML =
+                '<h4>' + (item.section_name || item.section_id || 'Section') + confChip(item) + '</h4>' +
+                (flags ? '<div class="review-flags">' + flags + '</div>' : '') +
+                '<p class="review-preview">' + (item.summary_preview || '') + '…</p>' +
+                '<label style="font-size:0.78rem;color:var(--muted);">Inspector note (optional)</label>' +
+                '<textarea class="review-note-input" placeholder="Add clarification for the client PDF…">' +
+                (item.user_note || '') + '</textarea>';
+            reviewList.appendChild(div);
+        });
+        updateReviewCounts();
+        if (lowConfList && lowMsgs && lowMsgs.length) {
+            lowConfList.innerHTML = '';
+            lowMsgs.forEach(function (m) {
+                var li = document.createElement('li');
+                li.textContent = m;
+                lowConfList.appendChild(li);
+            });
+            if (lowConfBanner) lowConfBanner.style.display = 'block';
+        }
+    }
+
+    function updateReviewCounts() {
+        var countsEl = document.getElementById('review-counts');
+        if (!countsEl || !reviewList) return;
+        var rows = reviewList.querySelectorAll('.review-row');
+        var total = rows.length;
+        var flagged = reviewList.querySelectorAll('.review-row.flagged').length;
+        var high = reviewList.querySelectorAll('.review-row[data-high="1"]').length;
+        countsEl.innerHTML = '<b>' + total + '</b> sections · <b>' + high + '</b> high-confidence · <b>' +
+            flagged + '</b> need a look';
+    }
+
+    function acceptAllHighConfidence() {
+        if (!reviewList) return;
+        var accepted = 0;
+        var firstFlagged = null;
+        reviewList.querySelectorAll('.review-row').forEach(function (row) {
+            if (row.getAttribute('data-high') === '1' && !row.classList.contains('flagged')) {
+                row.classList.add('accepted');
+                accepted++;
+            } else if (!firstFlagged) {
+                firstFlagged = row;
+            }
+        });
+        if (firstFlagged) firstFlagged.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function bindMarkChips() {
+        document.querySelectorAll('.mark-chip').forEach(function (chip) {
+            chip.addEventListener('click', function () {
+                var t = parseFloat(chip.getAttribute('data-t') || '0');
+                if (!videoEl || isNaN(t)) return;
+                videoEl.currentTime = Math.max(0, t);
+                videoEl.play().catch(function () {});
+            });
+        });
+    }
+
+    function renderMarkMoments(moments) {
+        if (!markTrack) return;
+        if (!moments || !moments.length) {
+            markTrack.innerHTML = '';
+            if (markEmpty) markEmpty.style.display = 'block';
+            return;
+        }
+        if (markEmpty) markEmpty.style.display = 'none';
+        markTrack.innerHTML = '';
+        moments.forEach(function (m) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'mark-chip';
+            btn.setAttribute('data-t', String(m.t_sec));
+            btn.title = 'Seek to ' + (m.time_display || (String(m.t_sec) + 's'));
+            btn.innerHTML = '<span class="t">' + (m.time_display || (String(m.t_sec) + 's')) + '</span>' +
+                '<span class="lbl">' + (m.label || '') + '</span>';
+            btn.addEventListener('click', function () {
+                var ts = parseFloat(btn.getAttribute('data-t') || '0');
+                if (!videoEl || isNaN(ts)) return;
+                videoEl.currentTime = Math.max(0, ts);
+                videoEl.play().catch(function () {});
+            });
+            markTrack.appendChild(btn);
+        });
+    }
+
+    function stopPolling() {
+        if (pollTimer !== null) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+        }
+    }
+
+    function maybeContinuePolling(status) {
+        if (status === 'running') {
+            if (pollTimer === null) {
+                pollTimer = setInterval(poll, 1500);
+            }
+        } else {
+            stopPolling();
+        }
+    }
+
+    function iconFor(st) {
+        if (st === 'completed') return '✓';
+        if (st === 'running') return '●';
+        if (st === 'failed') return '✕';
+        return '○';
+    }
+
+    function stepLabelFromId(id) {
+        var map = {
+            audio: 'Prepare audio',
+            workflow: 'Plan workflow',
+            transcription: 'Transcribe audio',
+            analyze: 'Analyze transcript',
+            domain: 'Domain expertise',
+            matching: 'Match “Mark this.” cues',
+            writing: 'Write report',
+            qa: 'Quality review',
+            crew: 'Agent synthesis',
+            pdf: 'Generate PDF',
+            completed: 'Done'
+        };
+        return map[id] || id || '—';
+    }
+
+    function renderSteps(steps) {
+        if (!steps || !steps.length) return;
+        stepsEl.innerHTML = '';
+        var done = 0;
+        var runningRow = null;
+        steps.forEach(function (s) {
+            if (s.status === 'completed') done++;
+            var li = document.createElement('li');
+            li.className = s.status || 'pending';
+            li.setAttribute('data-id', s.id || '');
+            li.innerHTML =
+                '<span class="ic">' + iconFor(s.status) + '</span>' +
+                '<span class="lbl">' + (s.label || s.id) + '</span><span></span>';
+            if (s.description) {
+                var sub = document.createElement('span');
+                sub.className = 'sub';
+                sub.textContent = s.description;
+                li.appendChild(sub);
+            }
+            stepsEl.appendChild(li);
+            if (s.status === 'running') runningRow = s;
+        });
+        var pct = Math.round((done / Math.max(1, steps.length)) * 100);
+        progFill.style.width = pct + '%';
+        if (progBar) progBar.setAttribute('aria-valuenow', String(pct));
+
+        if (runningRow) {
+            curBox.style.display = 'block';
+            curTitle.textContent = runningRow.label || stepLabelFromId(runningRow.id);
+            curDesc.textContent = runningRow.description || 'In progress…';
+        } else {
+            curBox.style.display = 'none';
+        }
+    }
+
+    var readyBanner = document.getElementById('report-ready-banner');
+    function setPdfReady(filename) {
+        var href = '{{ url_for("download_report", video_id=video_id) }}';
+        [pdfBtn, heroPdf].forEach(function (el) {
+            if (!el) return;
+            el.classList.remove('is-disabled');
+            el.removeAttribute('aria-disabled');
+            el.setAttribute('href', href);
+            el.onclick = null;
+        });
+        if (filename && pdfHint) pdfHint.textContent = 'Ready: ' + filename;
+        if (readyBanner && readyBanner.style.display === 'none') {
+            readyBanner.style.display = 'block';
+            readyBanner.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        showTotalTime();
+    }
+
+    function poll() {
+        fetch('{{ url_for("upload_status", video_id=video_id) }}')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || !data.job) return;
+                var st = data.job.status || 'unknown';
+                pill.textContent = st;
+                pill.className = 'pill' +
+                    (st === 'completed' ? ' ok' : '') +
+                    (st === 'failed' ? ' bad' : '') +
+                    (st === 'running' ? ' run' : '');
+                detail.textContent = data.job.detail || '';
+                if (data.pipeline_steps) renderSteps(data.pipeline_steps);
+
+                var pollNotes = data.pipeline_notes || data.demo_notes || [];
+                if (pollNotes.length) {
+                    pipelineNotes.style.display = 'block';
+                    pipelineNotesList.innerHTML = '';
+                    pollNotes.forEach(function (note) {
+                        var li = document.createElement('li');
+                        li.textContent = note;
+                        pipelineNotesList.appendChild(li);
+                    });
+                }
+
+                if (data.friendly_error) {
+                    friendly.style.display = 'block';
+                    friendly.textContent = data.friendly_error;
+                }
+
+                if (data.job.pdf_filename) {
+                    setPdfReady(data.job.pdf_filename);
+                }
+
+                if (Array.isArray(data.mark_moments)) {
+                    renderMarkMoments(data.mark_moments);
+                }
+
+                if (Array.isArray(data.review_items) && data.review_items.length) {
+                    renderReviewItems(data.review_items, data.low_confidence_messages || []);
+                }
+
+                if (st === 'awaiting_review') {
+                    if (reviewCard) reviewCard.style.display = 'block';
+                }
+
+                maybeContinuePolling(st);
+                if (st === 'completed' || st === 'failed') {
+                    if (st === 'completed') renderSteps(data.pipeline_steps || []);
+                    pill.classList.remove('run');
+                }
+            })
+            .catch(function () {});
+    }
+
+    if (btnPlay && videoEl) {
+        btnPlay.addEventListener('click', function () {
+            videoEl.play().catch(function () {});
+        });
+    }
+
+    var btnAcceptHigh = document.getElementById('btn-accept-high');
+    if (btnAcceptHigh) btnAcceptHigh.addEventListener('click', acceptAllHighConfidence);
+    updateReviewCounts();
+
+    var TIME_KEY = 'jobdoc_gen_started_{{ video_id }}';
+    function markGenStarted() {
+        if (!sessionStorage.getItem(TIME_KEY)) {
+            sessionStorage.setItem(TIME_KEY, String(Date.now()));
+        }
+    }
+    function showTotalTime() {
+        var started = parseInt(sessionStorage.getItem(TIME_KEY) || '0', 10);
+        if (!started) return;
+        var secs = Math.max(0, Math.round((Date.now() - started) / 1000));
+        var mins = Math.floor(secs / 60);
+        var el = document.getElementById('total-time');
+        if (el) {
+            el.style.display = 'block';
+            el.innerHTML = 'Total time from generate to PDF: <b>' +
+                (mins > 0 ? mins + ' min ' : '') + (secs % 60) + ' sec</b>';
+        }
+    }
+
+    bindMarkChips();
+
+    var btnSaveKeys = document.getElementById('btn-save-keys');
+    var keysMsg = document.getElementById('keys-msg');
+    var dgKey = document.getElementById('dg-key');
+    var anKey = document.getElementById('an-key');
+    var dgState = document.getElementById('dg-state');
+    var anState = document.getElementById('an-state');
+
+    function renderKeyState(keys) {
+        if (!keys) return;
+        if (dgState && keys.DEEPGRAM_API_KEY) {
+            dgState.textContent = keys.DEEPGRAM_API_KEY.present ? 'set (' + keys.DEEPGRAM_API_KEY.source + ')' : 'not set';
+        }
+        if (anState && keys.OPENAI_API_KEY) {
+            anState.textContent = keys.OPENAI_API_KEY.present ? 'set (' + keys.OPENAI_API_KEY.source + ')' : 'not set';
+        }
+    }
+
+    if (btnSaveKeys) {
+        btnSaveKeys.addEventListener('click', function () {
+            keysMsg.textContent = 'Saving…';
+            var fd = new FormData();
+            if (dgKey && dgKey.value.trim()) fd.append('deepgram_api_key', dgKey.value.trim());
+            if (anKey && anKey.value.trim()) fd.append('openai_api_key', anKey.value.trim());
+            fetch('{{ url_for("api_keys") }}', { method: 'POST', body: fd })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    renderKeyState(data.keys);
+                    if (dgKey) dgKey.value = '';
+                    if (anKey) anKey.value = '';
+                    keysMsg.textContent = data.ready ? 'Keys saved — ready to generate.' : 'Saved. Both keys are required to generate.';
+                })
+                .catch(function () { keysMsg.textContent = 'Could not save keys — try again.'; });
+        });
+    }
+
+    poll();
+
+    var form = document.getElementById('gen-form');
+    if (form) {
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            var submitter = e.submitter;
+            var stage = (submitter && submitter.getAttribute('data-stage')) || 'full';
+            if (pipelineStageInput) pipelineStageInput.value = stage;
+            markGenStarted();
+            if (reviewNotesInput && (stage === 'pdf' || stage === 'full')) {
+                reviewNotesInput.value = collectReviewNotes();
+            }
+            var buttons = form.querySelectorAll('button[type="submit"]');
+            buttons.forEach(function (b) { b.disabled = true; });
+            genArea.classList.add('is-loading');
+            stopPolling();
+            pollTimer = setInterval(poll, 1300);
+            try {
+                var res = await fetch(form.action, { method: 'POST', body: new FormData(form) });
+                var data = await res.json();
+                var pre = document.getElementById('gen-result');
+                pre.style.display = 'block';
+                pre.textContent = JSON.stringify(data, null, 2);
+                poll();
+                if (data.error && !data.ok) {
+                    friendly.style.display = 'block';
+                    friendly.textContent = data.error;
+                } else {
+                    friendly.style.display = 'none';
+                }
+                var notesPost = data.pipeline_notes || data.demo_notes || [];
+                if (notesPost.length) {
+                    pipelineNotes.style.display = 'block';
+                    pipelineNotesList.innerHTML = '';
+                    notesPost.forEach(function (note) {
+                        var li = document.createElement('li');
+                        li.textContent = note;
+                        pipelineNotesList.appendChild(li);
+                    });
+                }
+                if (Array.isArray(data.mark_moments)) {
+                    renderMarkMoments(data.mark_moments);
+                }
+                if (Array.isArray(data.review_items)) {
+                    renderReviewItems(data.review_items, data.low_confidence_messages || []);
+                }
+                if (data.status === 'awaiting_review') {
+                    pill.textContent = 'awaiting_review';
+                    pill.className = 'pill run';
+                }
+                if (data.pdf_filename) {
+                    setPdfReady(data.pdf_filename);
+                }
+                if (data.pdf_error) {
+                    friendly.style.display = 'block';
+                    friendly.textContent = data.pdf_error;
+                }
+            } catch (err) {
+                document.getElementById('gen-result').style.display = 'block';
+                document.getElementById('gen-result').textContent = String(err);
+            } finally {
+                buttons.forEach(function (b) { b.disabled = false; });
+                genArea.classList.remove('is-loading');
+            }
+        });
+    }
+})();
+</script>
+{% endblock %}

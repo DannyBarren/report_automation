@@ -1,0 +1,75 @@
+{# People Report — print-first HTML; WeasyPrint-safe (no external CSS CDNs). #}
+<style>
+  .rp-root { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: #0f172a; }
+  .rp-doc-header {
+    border-bottom: 3px solid #1e40af;
+    padding-bottom: 14px;
+    margin-bottom: 20px;
+    background: linear-gradient(180deg, #eff6ff 0%, #fff 100%);
+    padding: 16px 18px 14px;
+    border-radius: 8px 8px 0 0;
+    margin: -2px -2px 20px -2px;
+  }
+  .rp-brand { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #3b82f6; font-weight: 700; margin: 0 0 6px; }
+  .rp-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 6px; color: #1e3a8a; }
+  .rp-meta-row { font-size: 12px; color: #64748b; margin: 0; line-height: 1.5; }
+  .rp-meta-row strong { color: #334155; }
+  .rp-chip { display:inline-block; padding: 3px 10px; border-radius: 999px; background:#e0e7ff; color:#3730a3; font-weight:600; font-size:11px; }
+  .rp-section { margin-bottom: 24px; padding: 16px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; break-inside: avoid; }
+  .rp-section-title { font-size: 15px; font-weight: 700; margin: 0 0 12px; color: #0f172a; border-left: 4px solid #2563eb; padding-left: 10px; }
+  .rp-grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
+  @media (min-width: 720px) { .rp-grid { grid-template-columns: minmax(260px, 38%) 1fr; align-items: start; } }
+  .rp-frame { border-radius: 10px; overflow: hidden; border: 1px solid #cbd5e1; background: #0f172a; min-height: 160px; display:flex; align-items:center; justify-content:center; }
+  .rp-frame img { width: 100%; height: auto; display: block; object-fit: cover; max-height: 280px; }
+  .rp-ph { color: #94a3b8; font-size: 12px; padding: 18px; text-align: center; }
+  .rp-copy { font-size: 12.5px; line-height: 1.6; color: #334155; text-align: justify; }
+  .rp-meta { margin-top: 10px; font-size: 11px; color: #64748b; }
+  .rp-fields { margin-top: 10px; font-size: 11px; color: #475569; }
+  .rp-fields code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 10px; }
+  .rp-footer {
+    margin-top: 28px; padding-top: 14px; border-top: 1px solid #e2e8f0;
+    font-size: 10px; color: #94a3b8; text-align: center; line-height: 1.5;
+  }
+</style>
+
+<div class="rp-root">
+  <header class="rp-doc-header">
+    <p class="rp-brand">Field documentation</p>
+    <h1 class="rp-title">{{ bundle.title }}</h1>
+    <p class="rp-meta-row"><strong>Generated (UTC):</strong> {{ final.generated_at_utc }}</p>
+    <p class="rp-meta-row"><strong>Source video:</strong> {{ final.video_filename }}</p>
+    <p class="rp-meta-row"><strong>Identification cue:</strong> <span class="rp-chip">{{ final.identification_phrase }}</span></p>
+  </header>
+
+  {% for sec in bundle.sections %}
+  <article class="rp-section">
+    <h2 class="rp-section-title">{{ sec.section_name }}</h2>
+    <div class="rp-grid">
+      <div class="rp-frame">
+        {% if sec.image_uri %}
+          <img src="{{ sec.image_uri }}" alt="Still frame at {{ sec.image_timestamp_sec|round(2) }}s" />
+        {% else %}
+          <div class="rp-ph">No still image available for this section.</div>
+        {% endif %}
+      </div>
+      <div>
+        <div class="rp-copy">{{ sec.summary }}</div>
+        <div class="rp-meta">
+          Narrative anchor {{ sec.timestamp_sec|round(2) }}s · Still frame {{ sec.image_timestamp_sec|round(2) }}s
+        </div>
+        {% if sec.field_values %}
+        <div class="rp-fields"><strong>Structured fields</strong>
+          {% for k,v in sec.field_values.items() %}
+          <div><code>{{ k }}</code>: {{ v }}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </article>
+  {% endfor %}
+
+  <footer class="rp-footer">
+    <p><strong>GenerSwift</strong> — A Barren Business Development Product · Contents reflect automated extraction and require human review where indicated.</p>
+  </footer>
+</div>

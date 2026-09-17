@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="color-scheme" content="dark">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="GenerSwift">
+    <title>{% block title %}Home{% endblock %} · GenerSwift - JobDoc Demo v1</title>
+    <link rel="manifest" href="{{ url_for('web_manifest') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon.svg') }}">
+    <link rel="icon" href="{{ url_for('static', filename='icon.svg') }}" type="image/svg+xml">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+    <div class="wrap{% block wrap_class %}{% endblock %}">
+        <header class="site-brand" role="banner">
+            <a href="{{ url_for('index') }}" class="site-brand__link" aria-label="GenerSwift - JobDoc Demo v1 home">
+                <span class="site-brand__mark" aria-hidden="true">G</span>
+                <span class="site-brand__text">
+                    <span class="brand-name">GenerSwift <span class="brand-name__sub">· JobDoc Demo v1</span></span>
+                    <span class="brand-tagline">a Barren Business Development Automation Product</span>
+                </span>
+            </a>
+            {% if is_authed or not auth_enabled %}
+            <nav class="site-brand__nav" aria-label="Account">
+                <a href="{{ url_for('clients_list') }}" class="site-brand__navlink">Clients</a>
+                <a href="{{ url_for('manage_keys') }}" class="site-brand__navlink">API keys</a>
+                {% if auth_enabled and is_authed %}
+                <a href="{{ url_for('logout') }}" class="site-brand__logout" aria-label="Sign out">Sign out</a>
+                {% endif %}
+            </nav>
+            {% endif %}
+        </header>
+
+        <div class="page-header">
+            <h1>{% block header_title %}Guided video reports{% endblock %}</h1>
+            <p>{% block header_subtitle %}AI-guided field capture and structured PDF output{% endblock %}</p>
+        </div>
+
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for msg in messages %}
+                    <div class="flash">{{ msg }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <main>
+            {% block content %}{% endblock %}
+        </main>
+
+        <footer class="site-footer" role="contentinfo">
+            <div>
+                <span class="brand-name">GenerSwift - JobDoc Demo v1</span>
+                <span class="brand-tagline">a Barren Business Development Automation Product</span>
+            </div>
+            <p class="site-footer__legal">Built in Partnership and For JobDoc</p>
+            <p class="site-footer__copy">
+                © Barren Business Development
+                {% if is_authed or not auth_enabled %}
+                · <a href="{{ url_for('manage_keys') }}" class="site-footer__link">Manage API keys</a>
+                {% endif %}
+            </p>
+            <p class="demo-notice demo-notice--footer">
+                Demo prototype, not a production-grade app. Use at your own risk. For full terms,
+                reach out to Danny. Not for commercial use. This is Danny's IP.
+            </p>
+        </footer>
+    </div>
+    {% block scripts %}{% endblock %}
+    <script>
+      // Register the service worker for offline app-shell caching + Add to Home Screen.
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function () {});
+        });
+      }
+    </script>
+</body>
+</html>

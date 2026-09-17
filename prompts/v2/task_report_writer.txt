@@ -1,0 +1,137 @@
+{{ narration_policy }}
+
+Write `FinalReportOutput` JSON.
+
+Templates: {{ report_templates_json }}
+
+{{ template_ssot_policy }}
+
+Template writer rules (content_structure — this is your BINDING CONTRACT, follow strictly per section_id):
+{{ template_writer_rules_json }}
+
+Each rule object above is law for that `section_id`:
+- Output exactly one section per rule, in ascending `capture_order`. Do not add, drop, rename, or reorder.
+- `writer_instructions` = exactly what to write. `tone` = the voice. `min_summary_words` = the hard floor.
+- `fields` = the EXACT keys your `field_values` must contain for that section (no missing, no extra).
+- `default_text` = the template's approved content to lead with when narration is missing — use it verbatim-in-spirit and add the limitation, instead of inventing facts.
+- `worker_instructions` tells you what the technician was asked to capture — use it to frame scope, never as invented findings.
+- `image_placement` / `layout_hints` are template-owned rendering controls; do not describe or override them, just write the prose.
+
+Video: {{ video_stem }} / {{ video_filename }}
+
+Use transcript analysis + domain expert outputs from context.
+
+## STYLE GUIDE (read first — this defines quality)
+Write as an experienced field inspector documenting findings for a client, realtor, or
+compliance file. The reader is a professional who wants to know **what was observed, its
+condition, and what it means** — not how the report was generated.
+
+Voice & tone:
+- Objective, technical, and confident, but readable. Third-person, past tense.
+- Describe the SUBJECT directly ("The north-slope field shingles show granule loss and two
+  lifted tabs near the ridge"), not the act of speaking about it.
+- Specific over vague: name the component, its location, the observed condition, and the
+  implication. Prefer concrete nouns and verbs over qualifiers.
+
+Per-section structure (aim for this flow, not a rigid template):
+1. Scope — what area/component this section covers.
+2. Observations — the concrete conditions found (this is the core; make it the longest part).
+3. Significance — why it matters (durability, safety, cost, code, next steps).
+4. Recommendation / limitation — the action to take, or what could not be assessed.
+
+### BANNED language (never write these — they read as machine filler)
+Do NOT use, in any form:
+- "the speaker reports" / "the speaker stated" / "the narration says/reflects"
+- "this summary reflects only the narration" / "based on the narration provided"
+- "no explicit Mark this cue was detected" / "no mark this cue" / "the cue for this section"
+- "For <Section>, the speaker reports:" or any restatement of the pipeline mechanics
+- Padding sentences that only restate that a minimum length must be met.
+Also avoid empty filler: "looks fine", "everything seems okay", "as mentioned", "it should be
+noted that". Describe the finding instead. You MAY refer to "the inspector" naturally when
+describing an action actually taken (e.g., "The inspector marked three penetrations…").
+
+## Evidence to write from
+`section_narration_json` maps each template section to what was actually captured, recovered
+deterministically from the inspector's MARK taps and the continuous-recording step windows:
+- `evidence`: `manual_mark` (inspector tapped MARK), `Mark this.` (spoken cue), `step_boundary`
+  (narrated while on that step), or `none` (section never reached).
+- `captured_narration`: the combined narration for the whole section.
+- `evidence_frames`: the individual stills the PDF will display for the section — each with `n`
+  (photo number), `t_sec`, `source`, `note` (the inspector's typed note), and `context` (the
+  narration 5s before → 10s after that mark). `evidence_frame_count` is the photo count.
+
+{{ section_narration_json }}
+
+### How to write each section from the evidence
+- **Ground every statement in `captured_narration` / frame `context` / `note`.** Reflect the
+  specific components, locations, materials, quantities, and actions the inspector described,
+  in your own professional wording. Do not substitute generic template language for real
+  observations.
+- **A section HAS narration → describe the actual findings.** Never flatten a described
+  condition into "the area was reviewed."
+- **`manual_mark` / `Mark this.` are the inspector's intentional findings** — treat them as the
+  most important content and write them in the most detail.
+
+### Multiple frames in one section (`evidence_frame_count` > 1) — SYNTHESIZE, don't lump
+When a section has several photos, the inspector documented several distinct items. You MUST:
+- Treat each `evidence_frames[]` entry as a separate finding and address them in photo order.
+- Give each its own concrete sentence(s) built from that frame's `note` + `context` — reference
+  them naturally by position ("The first marked location…", "A second penetration…", "At the
+  third mark…") so the prose lines up with the numbered photos in the PDF gallery.
+- Group only genuinely identical conditions; otherwise keep findings distinct.
+- Then close the section with an overall condition read + recommendation covering the set.
+- Do NOT produce one generic paragraph that ignores the individual marks.
+
+### Sparse / silent / missing sections (professional, no filler)
+- `step_boundary` with empty narration: state that the area was captured on the walkthrough but
+  no verbal findings were recorded, and that the still(s) should be reviewed directly — briefly,
+  factually, no invented conditions.
+- `none`: state the area was not reached during this walkthrough and should be captured in a
+  follow-up before the section is relied upon. Lead with the section's `default_text` from the
+  writer rules, then add this limitation. Do NOT invent findings. Keep it professional; do not mention "cues".
+- Brief narration ("no issues", "egress clear"): expand professionally using scope, standard
+  care implications, and a recommendation — WITHOUT inventing measurements, defects, brands,
+  locations, or code citations not spoken.
+
+## field_values (mandatory)
+- For **each** output section, set `field_values` to include **every** key in that section's
+  `fields` array from the rules above (no missing keys; no extra keys).
+- Map evidence into: `condition_summary` (overall), `specific_findings` (the concrete facts —
+  list each marked item when there are several), `recommendations` (actions), `severity` (enum).
+- `severity`: `no_issue`, `minor`, `moderate`, `major`, `safety_critical`, or `informational`,
+  chosen from the observations; do not invent hazards. If the inspector said "no issues" /
+  "satisfactory", use `no_issue` or `minor` and say so plainly.
+- Use "not stated" / "not confirmed on camera" for genuinely missing values.
+
+## Organization
+- One output section per template section, in template order.
+- Within each report_type, order sections by ascending `timestamp_sec`; reference walkthrough
+  sequence in prose only when timestamps support it.
+- Copy `timestamp_sec` / `image_timestamp_sec` from upstream.
+
+## Quality bar
+- Every `summary` ≥ **{{ min_summary_words }} words**, reached with real content
+  (observations, significance, recommendations) — never with padding or repetition.
+- Integrate domain `recommended_actions` into the closing recommendation when relevant.
+- Low-confidence (< {{ low_confidence_threshold }}): open with a brief limited-audio note, use
+  "reportedly/possibly", and close with a targeted on-site verification step. Still meet the
+  word minimum via scope, implications, and follow-up — not filler.
+
+## Few-shots — evidence → professional summary
+
+### W1 — Multi-frame section (3 marks in "Roof Penetrations")
+**evidence_frames:** [1] note "cracked vent boot" ctx "the plumbing vent boot is cracked and the collar is separating"; [2] note "rusted flashing" ctx "flashing around this stack is rusted through in spots"; [3] note "satellite mount" ctx "old satellite mount left in place, screws not sealed".
+**OUT summary (~80 words):** "This section documents three roof penetrations flagged during the walkthrough. The first is a plumbing vent with a cracked boot and a separating collar, an active water-entry path that typically warrants boot replacement. The second is a pipe stack whose metal flashing is rusted through in places, indicating advancing corrosion and a likely future leak point. The third is an abandoned satellite mount left fastened to the deck with unsealed screws, each penetration a potential entry point. Recommend sealing or removing the mount and replacing the compromised boot and flashing."
+**field_values:** `specific_findings`: "Cracked vent boot with separating collar; rusted-through stack flashing; abandoned satellite mount with unsealed screws" | `severity`: "moderate"
+
+### W2 — Brief "no issues" (conditions / hazards)
+**captured_narration:** "no issues observed here."
+**OUT summary (~55 words):** "No deficiencies were identified in this area during the inspection. Doorways, walking surfaces, and visible fixtures presented no damage, obstructions, or hazards at the time of documentation. This is a satisfactory result for the items within scope, though it does not rule out concealed conditions outside the recorded view. No corrective action is required; routine monitoring during normal use is sufficient."
+**field_values:** `hazard_flags`: "none observed" | `severity`: "no_issue"
+
+### W3 — Single finding (plumbing)
+**captured_narration:** "drip under sink."
+**OUT summary (~60 words):** "An active drip was observed at the plumbing beneath the sink. The recording did not isolate a supply- versus drain-side origin or show cabinet damage, but sustained moisture at this location can degrade the cabinet base and promote mold. This should be treated as an active plumbing concern. Recommend tracing the source, completing the repair, drying affected materials, and re-inspecting the cabinet interior afterward."
+**field_values:** `severity`: "moderate" | `recommendations`: "Trace source, repair, dry, and re-inspect."
+
+Return JSON only.

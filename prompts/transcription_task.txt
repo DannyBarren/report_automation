@@ -1,0 +1,21 @@
+# Transcription task
+
+## Video
+- Path on server: ``{{ video_path }}``
+- Identification phrase expected on-site: **{{ identification_phrase }}**
+
+## Context
+Real speech-to-text has already run using Deepgram Nova-3. The JSON below is the **actual**
+engine output used by the deterministic matcher and PDF pipeline.
+
+## Your output
+Return **valid JSON only** (no markdown fences) representing the transcript bundle.
+Match the structure of the reference payload below exactly where keys overlap.
+
+## Reference transcript (authoritative shape)
+```json
+{{ reference_transcript_json }}
+```
+
+## Expected keys
+- ``engine``, ``language``, ``full_text``, ``segments`` (list of {start, end, text}), ``confidence_avg``.

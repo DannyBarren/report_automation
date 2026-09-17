@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block header_title %}Sign in{% endblock %}
+{% block header_subtitle %}Access is limited to authorized users{% endblock %}
+
+{% block content %}
+<div class="card login-card">
+    <div class="login-mark" aria-hidden="true">G</div>
+    <h2 style="margin:0 0 0.2rem;text-align:center;">GenerSwift <span style="color:var(--info-bright);font-weight:700;">- JobDoc Demo v1</span></h2>
+    <p style="margin:0 0 0.15rem;text-align:center;color:var(--accent-bright);font-size:0.82rem;font-weight:600;">
+        a Barren Business Development Automation Product
+    </p>
+    <p style="margin:0 0 1.1rem;text-align:center;color:var(--muted);font-size:0.95rem;">
+        Sign in to start a new report.
+    </p>
+
+    {% if error %}
+    <div class="flash flash-error" role="alert" style="margin-bottom:1rem;">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('login') }}" autocomplete="on" novalidate>
+        <input type="hidden" name="next" value="{{ next_url }}">
+        <label class="field">
+            <span class="field-label">Username</span>
+            <input class="input" type="text" name="username" autocomplete="username"
+                   inputmode="text" autocapitalize="none" autocorrect="off" required autofocus
+                   placeholder="jobdoc">
+        </label>
+        <label class="field">
+            <span class="field-label">Password</span>
+            <input class="input" type="password" name="password" autocomplete="current-password"
+                   required placeholder="••••••••">
+        </label>
+        <button type="submit" class="btn btn-lg" style="width:100%;margin-top:0.5rem;">Sign in →</button>
+        <p class="login-agree">
+            By signing in, you agree to the full terms of use (available on request from Danny).
+        </p>
+    </form>
+
+    <p class="login-legal">Built in Partnership and For JobDoc</p>
+
+    <p class="demo-notice">
+        This is a demo prototype, not a production-grade app. Use at your own risk. For full terms,
+        reach out to Danny. This is not to be used for any commercial use. This is Danny's IP.
+    </p>
+</div>
+{% endblock %}

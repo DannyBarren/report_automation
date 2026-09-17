@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Clients{% endblock %}
+{% block header_title %}Clients{% endblock %}
+{% block header_subtitle %}Manage the clients you capture sessions for. Create one here, or add a new client on the fly when starting a capture.{% endblock %}
+{% block wrap_class %} wrap--wide{% endblock %}
+
+{% block head %}
+<style>
+    .section-label {
+        font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+        color: var(--muted); margin: 1.5rem 0 0.75rem;
+    }
+    .field-grid { display: grid; gap: 0.75rem; grid-template-columns: 1fr; }
+    @media (min-width: 620px) { .field-grid.cols-2 { grid-template-columns: 1fr 1fr; } }
+
+    .client-list { display: grid; gap: 0.75rem; grid-template-columns: 1fr; margin-top: 0.5rem; }
+    @media (min-width: 620px) { .client-list { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); } }
+    .client-card {
+        border: 1px solid var(--border); border-radius: var(--radius);
+        background: var(--surface); padding: 0.95rem 1.05rem;
+    }
+    .client-card { text-decoration: none; color: inherit; display: block; transition: border-color 0.15s ease, transform 0.15s ease; }
+    .client-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+    .client-card h3 { margin: 0 0 0.2rem; font-size: 1.05rem; }
+    .client-card .view-hint { margin-top: 0.6rem; font-size: 0.78rem; color: var(--accent); font-weight: 600; }
+    .client-card .company { color: var(--accent); font-size: 0.9rem; margin: 0 0 0.5rem; }
+    .client-card .row { font-size: 0.85rem; color: var(--muted); margin: 0.15rem 0; }
+    .client-card .meta { margin-top: 0.6rem; font-size: 0.78rem; color: var(--muted-dim); }
+    .client-search { margin: 0.5rem 0 0; }
+    .empty { color: var(--muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;">
+    <p class="section-label" style="margin:0;">Existing clients ({{ clients|length }})</p>
+    <a class="btn btn-secondary" href="{{ url_for('index') }}">← Start a capture</a>
+</div>
+
+<input class="input client-search" type="search" id="client-filter" placeholder="Filter clients…" autocomplete="off">
+
+{% if clients %}
+<div class="client-list" id="client-list">
+    {% for c in clients %}
+    <a class="client-card" href="{{ url_for('client_detail', client_id=c.id) }}" data-search="{{ c.name|lower }} {{ (c.company or '')|lower }} {{ (c.email or '')|lower }}">
+        <h3>{{ c.name }}</h3>
+        {% if c.company %}<p class="company">{{ c.company }}</p>{% endif %}
+        {% if c.email %}<p class="row">✉ {{ c.email }}</p>{% endif %}
+        {% if c.phone %}<p class="row">☎ {{ c.phone }}</p>{% endif %}
+        {% if c.address %}<p class="row">⌂ {{ c.address }}</p>{% endif %}
+        {% if c.notes %}<p class="row">{{ c.notes }}</p>{% endif %}
+        <p class="meta">{{ c.sessions|length }} session{{ '' if c.sessions|length == 1 else 's' }}</p>
+        <p class="view-hint">View profile &amp; summaries →</p>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<p class="empty">No clients yet. Create your first one below.</p>
+{% endif %}
+
+<p class="section-label">Create a new client</p>
+<form method="post" action="{{ url_for('clients_create') }}" class="card">
+    <div class="field-grid cols-2">
+        <label class="field" style="margin:0;">
+            <span class="field-label">Client name <span style="color:var(--accent);">*</span></span>
+            <input class="input" type="text" name="name" placeholder="Jordan Smith" autocomplete="off" required>
+        </label>
+        <label class="field" style="margin:0;">
+            <span class="field-label">Company</span>
+            <input class="input" type="text" name="company" placeholder="Acme Realty" autocomplete="off">
+        </label>
+        <label class="field" style="margin:0;">
+            <span class="field-label">Email</span>
+            <input class="input" type="email" name="email" placeholder="jordan@acme.com" autocomplete="off">
+        </label>
+        <label class="field" style="margin:0;">
+            <span class="field-label">Phone</span>
+            <input class="input" type="tel" name="phone" placeholder="(555) 123-4567" autocomplete="off">
+        </label>
+    </div>
+    <label class="field" style="margin:0.75rem 0 0;">
+        <span class="field-label">Address</span>
+        <input class="input" type="text" name="address" placeholder="123 Oak Lane, Springfield" autocomplete="off">
+    </label>
+    <label class="field" style="margin:0.75rem 0 0;">
+        <span class="field-label">Notes</span>
+        <textarea class="input" name="notes" rows="2" placeholder="Anything useful to remember about this client…"></textarea>
+    </label>
+    <div style="margin-top:1rem;">
+        <button type="submit" class="btn">Create client</button>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var filter = document.getElementById('client-filter');
+    var list = document.getElementById('client-list');
+    if (!filter || !list) return;
+    filter.addEventListener('input', function () {
+        var q = filter.value.trim().toLowerCase();
+        list.querySelectorAll('.client-card').forEach(function (card) {
+            var hay = card.getAttribute('data-search') || '';
+            card.style.display = (!q || hay.indexOf(q) >= 0) ? '' : 'none';
+        });
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,42 @@
+# Keep the build context small and never bake secrets / local state into the image.
+
+# Secrets & local env
+.env
+.env.*
+
+# Version control / editor
+.git
+.gitignore
+.vscode
+.idea
+
+# Python caches / virtualenvs
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Runtime state (recreated in the container; must not ship sample data)
+instance/
+uploads/
+reports_output/
+*.db
+*.sqlite
+
+# Windows-only GTK runtime + helpers (Linux image installs libs via apt)
+gtk3/
+*.exe
+pinggy.ps1
+run_demo.bat
+
+# Large local sample media
+*.mp4
+*.mov
+*.MOV
+*.mkv
+*.webm
+*.wav
+
+# Docs that don't belong in the image
+DEMO_SCRIPT.md

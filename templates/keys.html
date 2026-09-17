@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}API keys{% endblock %}
+{% block header_title %}API keys &amp; providers{% endblock %}
+{% block header_subtitle %}Used only for this session — never stored permanently{% endblock %}
+
+{% macro state_pill(info) %}
+  {% if info and info.present %}
+    <span class="key-state">set ({{ info.source }})</span>
+  {% else %}
+    <span class="key-state off">not set</span>
+  {% endif %}
+{% endmacro %}
+
+{% block content %}
+<div class="card keys-card">
+  <div id="keys-status" class="alert-info" role="status"
+       style="display:{% if key_status and key_status.DEEPGRAM_API_KEY.present and key_status.OPENAI_API_KEY.present %}block{% else %}none{% endif %};">
+    Keys configured — you're ready to generate reports.
+  </div>
+
+  <form id="keys-form" autocomplete="off" novalidate>
+    <p class="section-label" style="margin-top:0;">Providers</p>
+
+    <label class="field">
+      <span class="field-label">Transcription (speech-to-text)</span>
+      <select class="input" name="stt_backend" id="stt-backend">
+        <option value="deepgram" {{ 'selected' if stt_backend == 'deepgram' else '' }}>Deepgram Nova-3 (default, cloud)</option>
+        {% if gpu_available %}
+        <option value="local" {{ 'selected' if stt_backend == 'local' else '' }}>Local faster-whisper (on-GPU, private)</option>
+        <option value="auto" {{ 'selected' if stt_backend == 'auto' else '' }}>Auto (local on GPU, else Deepgram)</option>
+        {% endif %}
+      </select>
+      {% if not gpu_available %}
+      <span class="field-hint">Local Whisper appears when this Space runs on GPU hardware.</span>
+      {% endif %}
+    </label>
+
+    <label class="field">
+      <span class="field-label">LLM reasoning</span>
+      <select class="input" name="llm_provider" id="llm-provider">
+        <option value="openai" selected>OpenAI (default)</option>
+      </select>
+    </label>
+
+    <p class="section-label">Your keys</p>
+
+    <label class="field">
+      <span class="field-label">
+        Deepgram API key {{ state_pill(key_status.DEEPGRAM_API_KEY) if key_status else '' }}
+      </span>
+      <input class="input" type="password" name="deepgram_api_key" id="dg-key" autocomplete="off"
+             placeholder="{{ 'Configured via Space secret — leave blank to keep' if key_status and key_status.DEEPGRAM_API_KEY.source == 'space' else 'dg_…' }}">
+    </label>
+
+    <label class="field">
+      <span class="field-label">
+        OpenAI API key {{ state_pill(key_status.OPENAI_API_KEY) if key_status else '' }}
+      </span>
+      <input class="input" type="password" name="openai_api_key" id="an-key" autocomplete="off"
+             placeholder="{{ 'Configured via Space secret — leave blank to keep' if key_status and key_status.OPENAI_API_KEY.source == 'space' else 'sk-…' }}">
+    </label>
+
+    <div class="keys-actions">
+      <button type="submit" class="btn btn-lg" id="keys-save">Save keys</button>
+      <a class="btn btn-secondary" href="{{ url_for('index') }}">Done</a>
+    </div>
+    <p class="keys-saved" id="keys-saved" hidden>Saved.</p>
+  </form>
+
+  <p class="keys-notice">
+    Your keys are used only for this session and never stored permanently. They are held
+    server-side for your browser session, applied only for your own generation requests, and
+    cleared when you sign out. <strong>Monitor your own usage and costs.</strong>
+  </p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    var form = document.getElementById('keys-form');
+    var statusBox = document.getElementById('keys-status');
+    var savedNote = document.getElementById('keys-saved');
+    var saveBtn = document.getElementById('keys-save');
+    if (!form) return;
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving…';
+      var fd = new FormData();
+      var dg = document.getElementById('dg-key');
+      var an = document.getElementById('an-key');
+      var stt = document.getElementById('stt-backend');
+      if (dg && dg.value.trim()) fd.append('deepgram_api_key', dg.value.trim());
+      if (an && an.value.trim()) fd.append('openai_api_key', an.value.trim());
+      if (stt && stt.value) fd.append('stt_backend', stt.value);
+
+      fetch('{{ url_for("api_keys") }}', {
+        method: 'POST',
+        headers: { 'X-JobDoc-Client': '1' },
+        body: fd
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          // Never echo key material — clear the inputs after a successful save.
+          if (dg) dg.value = '';
+          if (an) an.value = '';
+          if (data && data.ready) {
+            statusBox.style.display = 'block';
+          }
+          if (savedNote) { savedNote.hidden = false; }
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Save keys';
+          setTimeout(function () { if (savedNote) savedNote.hidden = true; }, 4000);
+        })
+        .catch(function () {
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Save keys';
+          if (statusBox) {
+            statusBox.textContent = 'Could not save right now — please try again.';
+            statusBox.style.display = 'block';
+          }
+        });
+    });
+  })();
+</script>
+{% endblock %}

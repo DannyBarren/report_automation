@@ -1,0 +1,49 @@
+{{ narration_policy }}
+
+Produce `TranscriptAnalysisOutput` JSON.
+
+{{ template_ssot_policy }}
+
+Templates (section order — authoritative): {{ report_templates_json }}
+
+Transcript: {{ transcript_json }}
+
+{% if mark_events_json and mark_events_json != "[]" %}
+Manual MARK taps (exact timestamps the inspector flagged on-device, with optional typed notes —
+treat as high-trust anchors that complement spoken cues):
+{{ mark_events_json }}
+{% endif %}
+
+{{ confidence_rubric }}
+
+## Procedure
+1. Detect every "{{ identification_phrase }}" (case-insensitive).
+2. Map cue *k* → section *k* in template order; set `section_id`, `report_type`.
+3. Narration window = same segment (after cue) through segment before next cue.
+4. `image_timestamp_sec` = midpoint of cue segment (clamp to segment bounds).
+5. Populate `context_before` / `context_after` from neighboring segments (include times if helpful).
+6. Score `confidence` with rubric; set `noise_factors`, `inferred_terms`, `requires_site_verification`.
+7. When a section has **no spoken cue** but a MARK tap exists at time *t*, anchor that section to
+   the tap: use narration spoken near *t*, fold in the tap's typed note, and set
+   `image_timestamp_sec` ≈ *t*. A typed note is reliable text (not ASR) — use it verbatim and raise
+   confidence accordingly. Never invent findings beyond narration + notes.
+
+## Few-shot — messy field transcripts (4)
+
+### FS1 — Heavy accent + homophones (electrical panel)
+**Segments:** `[38.0] "okay main paddle mark this uh two forty maybe two hundred paddle double— tapped breakers i think positions fourteen sixteen"`
+**OUT:** `raw_narration`: unchanged | `cleaned_observation`: "Speaker reports the main electrical panel may be 240-volt service and possibly double-tapped breakers in positions 14 and 16 (wording uncertain)." | `confidence`: 0.58 | `confidence_band`: low | `noise_factors`: [accent_or_dialect, homophone_error, fast_speech] | `inferred_terms`: ["panel" for "paddle", "240" for "two forty"] | `asr_noise_notes`: "ASR heard 'paddle' for panel; double-tapped not fully clear—verify on site." | `requires_site_verification`: true
+
+### FS2 — Wind noise (roof inspection)
+**Segments:** `[12.1] "(wind) mark this— shingle— liftin on south— slope maybe ten percent— feet from ridge hard to hear"`
+**OUT:** `cleaned_observation`: "Speaker reports lifting shingles on the south roof slope, possibly within approximately ten feet of the ridge; extent unclear due to audio." | `confidence`: 0.48 | `confidence_band`: very_low | `noise_factors`: [wind, dropped_words, mumbling] | `asr_noise_notes`: "Wind obscured quantity and measurements; 'ten percent' may be 'ten feet'." | `inferred_terms`: ["feet" vs "percent"]
+
+### FS3 — Mumbling PPE (people report)
+**Segments:** `[5.2] "mark this um vest maybe on glasses— dunno gloves somewhere desk"`
+**OUT:** `cleaned_observation`: "Speaker indicates a hi-vis vest may be present; eyewear and gloves status unclear; gloves reportedly near the desk." | `confidence`: 0.52 | `noise_factors`: [mumbling, dropped_words] | `asr_noise_notes`: "Low volume; PPE compliance cannot be confirmed from audio alone."
+
+### FS4 — Interrupted speech + tool noise (plumbing)
+**Segments:** `[71.0] "[drill] mark this— wait— active drip under— kitchen sink cabinet— north wall— sorry slow leak stain"`
+**OUT:** `context_before`: drill noise segment | `cleaned_observation`: "Speaker reports an active drip or slow leak under the kitchen sink cabinet on the north wall, with staining mentioned after interruption." | `confidence`: 0.72 | `noise_factors`: [tool_or_equipment, interruption, background_noise] | `asr_noise_notes`: "Drill interrupted opening; leak vs stain sequence merged from restart."
+
+Return complete JSON only.

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}PDF unavailable{% endblock %}
+{% block header_title %}PDF export unavailable{% endblock %}
+{% block header_subtitle %}GTK3 libraries are not loaded{% endblock %}
+
+{% block head %}
+<style>
+  .block-hero {
+    text-align: center;
+    padding: 2rem 1rem;
+    max-width: 520px;
+    margin: 0 auto 1.5rem;
+  }
+  .block-hero h2 { font-size: 1.5rem; margin: 0 0 0.75rem; color: #fecaca; }
+  .block-hero p { color: var(--muted); line-height: 1.55; margin: 0; }
+  .btn-fix-lg {
+    display: inline-block;
+    margin-top: 1.25rem;
+    padding: 1.1rem 2rem;
+    font-size: 1.2rem;
+    font-weight: 800;
+    border-radius: 14px;
+    background: linear-gradient(180deg, var(--accent) 0%, var(--accent-dim) 100%);
+    color: #05080c !important;
+    text-decoration: none;
+    box-shadow: 0 6px 24px var(--accent-glow);
+  }
+  .btn-fix-lg:hover { filter: brightness(1.08); color: #05080c !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card block-hero">
+  <h2>Cannot generate PDF yet</h2>
+  <p>
+    Your recording and report draft are safe. PDF export needs a one-time
+    <strong>GTK3</strong> setup on this PC (about 49 MB, stored in the project folder).
+  </p>
+  <a class="btn-fix-lg" href="{{ url_for('setup_weasyprint_page') }}">Fix dependencies</a>
+  <p style="margin-top:1.25rem;font-size:0.88rem;">
+    <a href="{{ url_for('index') }}">Back to home</a>
+  </p>
+</div>
+{% endblock %}

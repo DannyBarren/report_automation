@@ -1,0 +1,36 @@
+# Matcher — align “Mark this.” cues to template sections (field evidence)
+
+## Identification phrase (hard requirement)
+The on-site trigger is **{{ identification_phrase }}** (case-insensitive, allow minor spacing). Any analysis MUST treat this as the start of a new **evidence block** for the next section in the capture order defined by templates.
+
+## Canonical templates (single source of truth)
+```json
+{{ report_templates_json }}
+```
+
+## Timestamped transcript (engine output + segments)
+```json
+{{ transcript_json }}
+```
+
+## Linking rules (how timestamps stay tied to prose + images)
+1. **Detect cues**: Find each transcript segment where ``text`` contains the identification phrase (case-insensitive). Treat each match as the start of one evidence block.
+2. **Extract full narration window**: For cue *k*, extract all spoken narration that follows the cue text, starting in that same segment and continuing through subsequent segments until just before cue *k+1* (or transcript end for the last cue). This extracted narration is the only factual source for that section.
+3. **Stable ordering**: Sort cues by ``t_start_sec`` ascending. Map cue *k* to the *k*-th template section in **flattened** template order (iterate report types in selection order; within each type follow JSON ``sections`` array order).
+4. **Anchor vs image timestamp**:
+   - ``timestamp_sec`` MUST equal ``t_start_sec`` of the cue segment (when the operator says the phrase).
+   - ``image_timestamp_sec`` MUST be inside the cue segment (prefer midpoint ``(t_start_sec + t_end_sec)/2`` clamped to bounds).
+5. **Summary (45–80 words, professional)**: Write a clean professional summary based **only** on the extracted narration for that cue window. Do not copy template instructions, checklists, or placeholder wording into the summary. Do not invent facts not spoken by the user.
+6. **Retry contract**: If a summary is <45 or >80 words, rewrite until it is within bounds while preserving only spoken facts.
+
+## Required machine-readable output (reference contract)
+Match **shape and keys** of the canonical matcher output below (timestamps are authoritative):
+```json
+{{ reference_matched_json }}
+```
+
+## Output language
+{{ output_language }}
+
+## QA hints for humans
+{{ matcher_hints }}

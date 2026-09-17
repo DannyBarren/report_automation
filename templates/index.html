@@ -1,0 +1,457 @@
+{% extends "base.html" %}
+{% block title %}Start a capture{% endblock %}
+{% block header_title %}Start a new capture session{% endblock %}
+{% block header_subtitle %}Pick the client, log the job details, choose a report — then record a guided walkthrough that always ends with a Misc / Supplemental step.{% endblock %}
+{% block wrap_class %} wrap--wide{% endblock %}
+
+{% block head %}
+<style>
+    .home-how {
+        display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+        font-size: 0.9rem; color: var(--muted); margin: 0 0 1.25rem;
+    }
+    .home-how .dot { width: 5px; height: 5px; border-radius: 999px; background: var(--accent); }
+
+    .section-label {
+        font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+        color: var(--muted); margin: 1.5rem 0 0.75rem; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .section-label .req { color: var(--accent); font-weight: 800; }
+    .section-note { font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--muted-dim); }
+
+    .step-card {
+        border: 1px solid var(--border); border-radius: var(--radius);
+        background: var(--surface); padding: 1rem 1.05rem 1.1rem;
+    }
+
+    .field-grid { display: grid; gap: 0.75rem; grid-template-columns: 1fr; }
+    @media (min-width: 620px) { .field-grid.cols-2 { grid-template-columns: 1fr 1fr; } }
+
+    .client-toolbar { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+    .client-toolbar .input { flex: 1; min-width: 180px; }
+
+    .new-client-panel { margin-top: 0.85rem; padding-top: 0.85rem; border-top: 1px dashed var(--border); }
+    .new-client-panel[hidden] { display: none; }
+
+    .pick-grid { display: grid; gap: 0.85rem; grid-template-columns: 1fr; }
+    @media (min-width: 620px) { .pick-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); } }
+
+    .pick-card {
+        position: relative; border: 1px solid var(--border); border-radius: var(--radius);
+        padding: 1.05rem 1.1rem 1.1rem; background: var(--surface); cursor: pointer;
+        transition: border-color 0.15s, box-shadow 0.15s, transform 0.08s, background 0.15s; display: block;
+    }
+    .pick-card:hover { border-color: var(--border-bright); background: var(--surface-hover); }
+    .pick-card:active { transform: scale(0.995); }
+    .pick-card input { position: absolute; opacity: 0; pointer-events: none; }
+    .pick-card.is-on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 12px 30px rgba(34,211,238,0.18); background: rgba(34,211,238,0.06); }
+    .pick-card .check {
+        position: absolute; top: 0.85rem; right: 0.9rem; width: 1.5rem; height: 1.5rem; border-radius: 999px;
+        border: 2px solid var(--border-bright); display: grid; place-items: center;
+        color: transparent; font-size: 0.9rem; font-weight: 900; transition: all 0.15s;
+    }
+    .pick-card.is-on .check { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+    .pick-card h3 { margin: 0 1.8rem 0.3rem 0; font-size: 1.12rem; line-height: 1.25; }
+    .pick-card .desc { margin: 0.6rem 0 0; font-size: 0.9rem; color: var(--muted); line-height: 1.45; }
+    .pick-card .meta { margin-top: 0.7rem; font-size: 0.8rem; color: var(--muted-dim); display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+
+    .misc-note {
+        margin-top: 0.85rem; display: flex; gap: 0.7rem; align-items: flex-start;
+        border: 1px solid var(--accent); border-radius: var(--radius);
+        background: rgba(34,211,238,0.06); padding: 0.85rem 1rem;
+    }
+    .misc-note .badge { white-space: nowrap; }
+    .misc-note p { margin: 0; font-size: 0.88rem; color: var(--muted); line-height: 1.45; }
+    .misc-note strong { color: var(--text-bright); }
+
+    /* Voice prompts pre-session toggle */
+    .voice-pref {
+        margin-top: 0.9rem; padding-top: 0.9rem; border-top: 1px dashed var(--border);
+        display: flex; align-items: center; gap: 1rem; justify-content: space-between; flex-wrap: wrap;
+    }
+    .voice-pref-text { display: flex; flex-direction: column; gap: 0.2rem; flex: 1; min-width: 200px; }
+    .voice-pref-title { font-size: 0.92rem; font-weight: 700; color: var(--text-bright); }
+    .voice-pref-hint { font-size: 0.82rem; color: var(--muted); line-height: 1.4; }
+
+    .switch { display: inline-flex; align-items: center; gap: 0.55rem; cursor: pointer; user-select: none; }
+    .switch input { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+    .switch-track {
+        position: relative; width: 46px; height: 26px; border-radius: 999px;
+        background: var(--border-bright); transition: background 0.18s ease; flex: none;
+    }
+    .switch-thumb {
+        position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 999px;
+        background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.35); transition: transform 0.18s ease;
+    }
+    .switch input:checked + .switch-track { background: var(--accent); }
+    .switch input:checked + .switch-track .switch-thumb { transform: translateX(20px); }
+    .switch input:focus-visible + .switch-track { box-shadow: 0 0 0 3px rgba(34,211,238,0.4); }
+    .switch-state { font-size: 0.82rem; font-weight: 700; color: var(--muted); min-width: 1.8rem; }
+    .switch input:checked ~ .switch-state { color: var(--accent); }
+
+    .key-row { display: grid; gap: 0.75rem; }
+    .key-state { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--success); margin-left: 0.4rem; }
+    .key-state.off { color: var(--muted-dim); }
+
+    .launch-bar {
+        position: sticky; bottom: 0; z-index: 20;
+        margin: 1.5rem -1rem -2rem; padding: 0.9rem max(1rem, var(--sal)) calc(0.9rem + var(--sab));
+        background: var(--glass-bg-strong);
+        -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
+        border-top: 1px solid var(--glass-border);
+        display: flex; align-items: center; gap: 0.85rem;
+    }
+    .launch-bar .count { font-size: 0.85rem; color: var(--muted); flex: 1; }
+    .launch-bar .count b { color: var(--text-bright); }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if not weasyprint_ready %}
+<div class="alert-info" role="status">
+    PDF libraries aren’t detected on this server. Recording and analysis still work; PDF export needs WeasyPrint
+    (already included in the Docker/HF Spaces image).
+</div>
+{% endif %}
+
+<p class="home-how">
+    <span>Client-aware capture</span><span class="dot"></span>
+    <span>guided walkthrough</span><span class="dot"></span>
+    <span>structured report + saved Misc data</span>
+</p>
+
+<form method="post" action="{{ url_for('start_session') }}" id="start-form">
+
+    <p class="section-label">1 · Client <span class="req">required</span>
+        <span class="section-note">(<a href="{{ url_for('clients_list') }}">manage clients</a>)</span>
+    </p>
+    <div class="step-card">
+        <div class="client-toolbar">
+            <input class="input" type="search" id="client-search" placeholder="Search clients by name, company, or email…" autocomplete="off">
+        </div>
+        <label class="field" style="margin:0.75rem 0 0;">
+            <span class="field-label">Select an existing client</span>
+            <select class="input" name="client_id" id="client-select">
+                <option value="">— Choose a client —</option>
+                {% for c in clients %}
+                <option value="{{ c.id }}"
+                    data-name="{{ c.name|lower }}"
+                    data-company="{{ (c.company or '')|lower }}"
+                    data-email="{{ (c.email or '')|lower }}">
+                    {{ c.display_label }}{% if c.email %} · {{ c.email }}{% endif %}
+                </option>
+                {% endfor %}
+            </select>
+        </label>
+
+        <div style="margin-top:0.8rem;">
+            <button type="button" class="btn btn-secondary" id="btn-toggle-new-client">+ New client</button>
+        </div>
+
+        <div class="new-client-panel" id="new-client-panel" hidden>
+            <div class="field-grid cols-2">
+                <label class="field" style="margin:0;">
+                    <span class="field-label">Client name <span class="req">*</span></span>
+                    <input class="input" type="text" name="new_client_name" id="new-client-name" placeholder="Jordan Smith" autocomplete="off">
+                </label>
+                <label class="field" style="margin:0;">
+                    <span class="field-label">Company</span>
+                    <input class="input" type="text" name="new_client_company" placeholder="Acme Realty" autocomplete="off">
+                </label>
+                <label class="field" style="margin:0;">
+                    <span class="field-label">Email <span class="req">*</span></span>
+                    <input class="input" type="email" name="new_client_email" id="new-client-email" placeholder="jordan@acme.com" autocomplete="off">
+                </label>
+                <label class="field" style="margin:0;">
+                    <span class="field-label">Phone</span>
+                    <input class="input" type="tel" name="new_client_phone" placeholder="(555) 123-4567" autocomplete="off">
+                </label>
+            </div>
+            <label class="field" style="margin:0.75rem 0 0;">
+                <span class="field-label">Client address</span>
+                <input class="input" type="text" name="new_client_address" placeholder="123 Oak Lane, Springfield" autocomplete="off">
+            </label>
+            <label class="field" style="margin:0.75rem 0 0;">
+                <span class="field-label">Notes</span>
+                <textarea class="input" name="new_client_notes" rows="2" placeholder="How you know them, preferences, anything to remember…"></textarea>
+            </label>
+        </div>
+    </div>
+
+    <p class="section-label">2 · Session details <span class="section-note">(optional)</span></p>
+    <div class="step-card">
+        <label class="field" style="margin:0;">
+            <span class="field-label">Job / property address</span>
+            <input class="input" type="text" name="job_address" id="job-address" value="{{ job_address }}" placeholder="123 Oak Lane, Springfield" autocomplete="off">
+        </label>
+        <div class="field-grid cols-2" style="margin-top:0.75rem;">
+            <label class="field" style="margin:0;">
+                <span class="field-label">Date of inspection</span>
+                <input class="input" type="date" name="inspection_date" value="{{ today }}">
+            </label>
+            <label class="field" style="margin:0;">
+                <span class="field-label">Inspector name</span>
+                <input class="input" type="text" name="inspector_name" value="{{ default_inspector }}" placeholder="Your name" autocomplete="off">
+            </label>
+            <label class="field" style="margin:0;">
+                <span class="field-label">Weather / conditions</span>
+                <input class="input" type="text" name="weather" placeholder="Clear, 72°F, dry" autocomplete="off">
+            </label>
+            <label class="field" style="margin:0;">
+                <span class="field-label">Access notes</span>
+                <input class="input" type="text" name="access_notes" placeholder="Gate code, lockbox, pets, parking…" autocomplete="off">
+            </label>
+        </div>
+
+        <div class="voice-pref" role="group" aria-label="Voice prompts">
+            <div class="voice-pref-text">
+                <span class="voice-pref-title">🔊 Voice prompts</span>
+                <span class="voice-pref-hint">Read each step’s instructions aloud during recording. On-screen text always shows — turn this off for silent, text-only guidance.</span>
+            </div>
+            <label class="switch" for="voice-prompts-toggle" title="Toggle spoken voice prompts">
+                <input type="checkbox" id="voice-prompts-toggle" name="voice_prompts" value="on" checked>
+                <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+                <span class="switch-state" id="voice-prompts-state">On</span>
+            </label>
+        </div>
+    </div>
+
+    <p class="section-label">3 · Report template <span class="req">required</span></p>
+    {% if reports %}
+    <div class="pick-grid" role="group" aria-label="Report templates">
+        {% for r in reports %}
+        <label class="pick-card{% if r.featured and loop.first %} is-on{% endif %}">
+            <input type="checkbox" name="report_types" value="{{ r.report_type }}"{% if r.featured and loop.first %} checked{% endif %}>
+            <span class="check" aria-hidden="true">✓</span>
+            <h3>{{ r.title }}</h3>
+            {% if r.featured %}<span class="badge accent">Recommended</span>{% endif %}
+            <p class="desc">
+                {% if r.template_description %}
+                    {{ r.template_description }}
+                {% elif r.sections and r.sections[0] %}
+                    {{ r.sections[0].capture_instructions[:140] }}{% if r.sections[0].capture_instructions|length > 140 %}…{% endif %}
+                {% else %}
+                    Field sections defined in your template — follow the on-screen cues while recording.
+                {% endif %}
+            </p>
+            <div class="meta">
+                <span>{{ r.sections|length }} section{{ '' if r.sections|length == 1 else 's' }}</span>
+                {% if r.schema_version >= 2 %}<span class="dot" style="width:4px;height:4px;border-radius:999px;background:var(--muted-dim);"></span><span>guided template</span>{% endif %}
+            </div>
+        </label>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card"><p style="margin:0;">No report templates found. Add JSON files under <code>reports/</code> to begin.</p></div>
+    {% endif %}
+
+    <div class="misc-note" role="note">
+        <span class="badge accent">Always added</span>
+        <p><strong>Misc / Supplemental step</strong> is automatically appended as the final section of every capture — to record pricing discussions, client requests, estimates, site conditions, and follow-up items. This data is saved separately for future invoices &amp; proposals.</p>
+    </div>
+
+    <p class="section-label">4 · API keys
+        <span class="section-note">(Deepgram + OpenAI — stored only for this session)</span>
+    </p>
+    <details class="disclosure"{% if not (key_status and key_status.DEEPGRAM_API_KEY.present and key_status.OPENAI_API_KEY.present) %} open{% endif %}>
+        <summary>
+            API keys
+            <span class="badge {{ 'ok' if key_status and key_status.DEEPGRAM_API_KEY.present and key_status.OPENAI_API_KEY.present else '' }}" style="text-transform:none;">
+                {{ 'Ready' if key_status and key_status.DEEPGRAM_API_KEY.present and key_status.OPENAI_API_KEY.present else 'Needed to process' }}
+            </span>
+        </summary>
+        <div class="disclosure-body">
+            <p style="margin:0 0 0.85rem;font-size:0.88rem;color:var(--muted);line-height:1.45;">
+                JobDoc calls <strong>Deepgram</strong> (speech-to-text) and <strong>OpenAI</strong> (report writing)
+                with your keys. Keys are stored server-side for this browser session only and never shown back.
+                <a href="https://console.deepgram.com/" target="_blank" rel="noopener">Deepgram key</a> ·
+                <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">OpenAI key</a>.
+            </p>
+            <div class="key-row">
+                <label class="field" style="margin:0;">
+                    <span class="field-label">Deepgram API key
+                        <span class="key-state {{ '' if key_status and key_status.DEEPGRAM_API_KEY.present else 'off' }}" id="dg-state">{{ 'set (' ~ key_status.DEEPGRAM_API_KEY.source ~ ')' if key_status and key_status.DEEPGRAM_API_KEY.present else 'not set' }}</span>
+                    </span>
+                    <input class="input" type="password" id="dg-key" autocomplete="off" placeholder="{{ 'Configured via Space secret — leave blank' if key_status and key_status.DEEPGRAM_API_KEY.source == 'space' else 'dg_…' }}">
+                </label>
+                <label class="field" style="margin:0;">
+                    <span class="field-label">OpenAI API key
+                        <span class="key-state {{ '' if key_status and key_status.OPENAI_API_KEY.present else 'off' }}" id="an-state">{{ 'set (' ~ key_status.OPENAI_API_KEY.source ~ ')' if key_status and key_status.OPENAI_API_KEY.present else 'not set' }}</span>
+                    </span>
+                    <input class="input" type="password" id="an-key" autocomplete="off" placeholder="{{ 'Configured via Space secret — leave blank' if key_status and key_status.OPENAI_API_KEY.source == 'space' else 'sk-…' }}">
+                </label>
+                <div style="display:flex;gap:0.6rem;align-items:center;">
+                    <button type="button" class="btn btn-secondary" id="btn-save-keys">Save keys</button>
+                    <span id="keys-msg" style="font-size:0.85rem;color:var(--muted);"></span>
+                </div>
+            </div>
+        </div>
+    </details>
+
+    <div class="launch-bar">
+        <span class="count" id="pick-count">Select a client &amp; report to continue</span>
+        <button type="submit" class="btn btn-lg" id="continue-btn" {% if not reports %}disabled{% endif %}>
+            Start capture →
+        </button>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var form = document.getElementById('start-form');
+    var countEl = document.getElementById('pick-count');
+    var continueBtn = document.getElementById('continue-btn');
+    var clientSelect = document.getElementById('client-select');
+    var clientSearch = document.getElementById('client-search');
+    var btnToggleNew = document.getElementById('btn-toggle-new-client');
+    var newPanel = document.getElementById('new-client-panel');
+    var newName = document.getElementById('new-client-name');
+    var newEmail = document.getElementById('new-client-email');
+    var jobAddress = document.getElementById('job-address');
+
+    function reportCount() {
+        var n = 0;
+        document.querySelectorAll('.pick-card').forEach(function (lab) {
+            var inp = lab.querySelector('input[type="checkbox"]');
+            if (!inp) return;
+            lab.classList.toggle('is-on', inp.checked);
+            if (inp.checked) n++;
+        });
+        return n;
+    }
+
+    // Only client name + email are required (when creating a new client). An existing
+    // selection is always sufficient. All session details (address, etc.) are optional.
+    function creatingNewClient() {
+        return !!(newPanel && !newPanel.hidden);
+    }
+    function newClientComplete() {
+        return !!(newName && newName.value.trim() && newEmail && newEmail.value.trim());
+    }
+    function hasClient() {
+        var selected = clientSelect && clientSelect.value;
+        return !!(selected || (creatingNewClient() && newClientComplete()));
+    }
+
+    function syncSelection() {
+        var n = reportCount();
+        var ok = n > 0 && hasClient();
+        if (countEl) {
+            if (creatingNewClient() && !newClientComplete()) countEl.textContent = 'Enter client name and email to continue';
+            else if (!hasClient()) countEl.textContent = 'Select or create a client to continue';
+            else if (n === 0) countEl.textContent = 'Choose a report template';
+            else countEl.innerHTML = 'Ready — <b>' + n + '</b> report' + (n === 1 ? '' : 's') + ' + Misc step';
+        }
+        if (continueBtn) continueBtn.classList.toggle('is-disabled', !ok);
+    }
+
+    document.querySelectorAll('.pick-card input[type="checkbox"]').forEach(function (inp) {
+        inp.addEventListener('change', syncSelection);
+    });
+
+    // Voice-prompts toggle: reflect On/Off in the label text (setting is submitted with the form).
+    var voiceToggle = document.getElementById('voice-prompts-toggle');
+    var voiceState = document.getElementById('voice-prompts-state');
+    if (voiceToggle && voiceState) {
+        var syncVoice = function () { voiceState.textContent = voiceToggle.checked ? 'On' : 'Off'; };
+        voiceToggle.addEventListener('change', syncVoice);
+        syncVoice();
+    }
+
+    if (clientSelect) clientSelect.addEventListener('change', syncSelection);
+    if (jobAddress) jobAddress.addEventListener('input', syncSelection);
+    if (newName) newName.addEventListener('input', syncSelection);
+    if (newEmail) newEmail.addEventListener('input', syncSelection);
+
+    // Filter the existing-client dropdown as the user types.
+    if (clientSearch && clientSelect) {
+        clientSearch.addEventListener('input', function () {
+            var q = clientSearch.value.trim().toLowerCase();
+            var firstMatch = '';
+            Array.prototype.forEach.call(clientSelect.options, function (opt) {
+                if (!opt.value) { opt.hidden = false; return; }
+                var hay = (opt.getAttribute('data-name') || '') + ' ' +
+                          (opt.getAttribute('data-company') || '') + ' ' +
+                          (opt.getAttribute('data-email') || '');
+                var match = !q || hay.indexOf(q) >= 0;
+                opt.hidden = !match;
+                if (match && !firstMatch) firstMatch = opt.value;
+            });
+            if (q && firstMatch) clientSelect.value = firstMatch;
+            syncSelection();
+        });
+    }
+
+    // Toggle the new-client panel. When creating new, clear the existing selection.
+    if (btnToggleNew && newPanel) {
+        btnToggleNew.addEventListener('click', function () {
+            var open = newPanel.hidden;
+            newPanel.hidden = !open;
+            btnToggleNew.textContent = open ? '✕ Cancel new client' : '+ New client';
+            if (open && clientSelect) { clientSelect.value = ''; clientSelect.disabled = true; }
+            else if (clientSelect) { clientSelect.disabled = false; }
+            syncSelection();
+        });
+    }
+
+    if (form) {
+        form.addEventListener('submit', function (e) {
+            if (creatingNewClient() && !newClientComplete()) {
+                e.preventDefault();
+                if (countEl) countEl.textContent = 'Client name and email are required.';
+                return;
+            }
+            if (!hasClient()) {
+                e.preventDefault();
+                if (countEl) countEl.textContent = 'Select or create a client first.';
+                return;
+            }
+            if (reportCount() === 0) {
+                e.preventDefault();
+                if (countEl) countEl.textContent = 'Pick a report template to continue.';
+            }
+        });
+    }
+
+    syncSelection();
+
+    // --- Save API keys to the server-side session store (never echoed back) ---
+    var btnSaveKeys = document.getElementById('btn-save-keys');
+    var keysMsg = document.getElementById('keys-msg');
+    var dgKey = document.getElementById('dg-key');
+    var anKey = document.getElementById('an-key');
+    var dgState = document.getElementById('dg-state');
+    var anState = document.getElementById('an-state');
+    function renderKeyState(keys) {
+        if (!keys) return;
+        if (dgState && keys.DEEPGRAM_API_KEY) {
+            dgState.textContent = keys.DEEPGRAM_API_KEY.present ? 'set (' + keys.DEEPGRAM_API_KEY.source + ')' : 'not set';
+            dgState.classList.toggle('off', !keys.DEEPGRAM_API_KEY.present);
+        }
+        if (anState && keys.OPENAI_API_KEY) {
+            anState.textContent = keys.OPENAI_API_KEY.present ? 'set (' + keys.OPENAI_API_KEY.source + ')' : 'not set';
+            anState.classList.toggle('off', !keys.OPENAI_API_KEY.present);
+        }
+    }
+    if (btnSaveKeys) {
+        btnSaveKeys.addEventListener('click', function () {
+            keysMsg.textContent = 'Saving…';
+            var fd = new FormData();
+            if (dgKey && dgKey.value.trim()) fd.append('deepgram_api_key', dgKey.value.trim());
+            if (anKey && anKey.value.trim()) fd.append('openai_api_key', anKey.value.trim());
+            fetch('{{ url_for("api_keys") }}', { method: 'POST', body: fd })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    renderKeyState(data.keys);
+                    if (dgKey) dgKey.value = '';
+                    if (anKey) anKey.value = '';
+                    keysMsg.textContent = data.ready ? 'Keys saved — ready to record.' : 'Saved. Both keys are required to process.';
+                })
+                .catch(function () { keysMsg.textContent = 'Could not save keys — try again.'; });
+        });
+    }
+})();
+</script>
+{% endblock %}

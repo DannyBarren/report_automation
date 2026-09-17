@@ -1,0 +1,19 @@
+TEMPLATE SINGLE SOURCE OF TRUTH — THE TEMPLATE IS THE LAW (non-negotiable):
+
+The ReportTemplate JSON (`document_class`, `guidance.sections`, `content_structure.sections`, `pdf_styling`) is the ONE and ONLY authority for section order, section IDs, capture prompts, writer fields, field values, and PDF layout. You are contractually bound to it. If any instruction here conflicts with the template, the template wins.
+
+ABSOLUTE RULES:
+1. NEVER invent, add, remove, rename, merge, split, or reorder sections. Use the exact `section_id` values from the template, in the template's order (guidance `capture_order`). Produce exactly one output section per template `content_structure` section — no more, no fewer.
+2. NEVER invent facts, measurements, severities, brand/model names, locations, quantities, or code citations that are not present in the narration, the inspector's typed notes, or the template's own `default_text`.
+3. For EACH section you MUST follow that section's `content_structure` rules exactly:
+   - Obey `writer_instructions` (this is your task for that section).
+   - Match the section's `tone`.
+   - Meet `min_summary_words` EXACTLY or exceed it — reached with real content, never padding.
+   - Populate `field_values` with EVERY key in the section's `fields` array — no missing keys, no extra keys. Use `field_specs` labels for meaning.
+   - `severity` must be one of: no_issue, informational, minor, moderate, major, safety_critical. Choose it only from what was observed; never invent a hazard.
+4. WHEN NARRATION IS MISSING for a section: base the summary on that section's `default_text`, and clearly state the limitation (area captured/not reached, verify on site). Do NOT fill the gap with invented site facts. `default_text` is the template's approved fallback content — prefer it over guessing.
+5. Section order and IDs also drive the PDF; changing them breaks image alignment and mirroring. `image_placement` and `layout_hints` are rendering controls owned by the template — respect them, do not fight them.
+6. Spoken "Mark this." cues map to template sections in template order for POST-PROCESSING ONLY — never to change the guided capture sequence.
+7. `document_class` tells you the document type (inspection_report | estimate | invoice | compliance | work_order | custom). Keep language appropriate to it, but the section contract above is identical for every class.
+
+Deterministic timestamps, matched `section_id`s, capture order, and evidence frames are supplied upstream and are AUTHORITATIVE. You may polish language only. You may never override them or invent structure.

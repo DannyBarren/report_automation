@@ -1,0 +1,37 @@
+# JobDoc — Python dependencies (Flask + CrewAI + media pipeline).
+#
+# GPU NOTE: the torch / faster-whisper lines below are only needed for the OPTIONAL
+# local GPU media + STT acceleration. The Dockerfile installs everything with the CUDA
+# 12.1 extra index (see below). On a CPU-only machine these still install (CPU build) —
+# the app degrades gracefully. To keep a light local CPU env you may comment them out.
+
+flask>=3.0.0
+flask-sqlalchemy>=3.1.0
+gunicorn>=21.2.0
+crewai>=0.70.0
+crewai-tools>=0.12.0
+pydantic>=2.0.0
+
+# PDF export (HTML -> PDF). Linux/macOS system libs are installed via the OS package
+# manager (see Dockerfile / README). On Windows, run_demo.bat handles the GTK3 runtime.
+py7zr>=0.21.0
+weasyprint>=62.0
+
+moviepy>=1.0.3
+# Deepgram is called via its REST API using stdlib urllib (see utils/transcription.py);
+# the deepgram-sdk package is intentionally not required, keeping the image lean.
+python-dotenv>=1.0.0
+jinja2>=3.1.0
+langchain-core>=0.2.0
+langchain-openai>=0.2.0
+openai>=1.40.0
+Pillow>=10.0.0
+
+# --- Optional GPU acceleration (media pipeline + local Whisper STT) -----------------
+# Installed in the Docker image with:
+#   pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu121
+# (cu121 matches the nvidia/cuda:12.1 base image). GPU is detected only at RUNTIME.
+--extra-index-url https://download.pytorch.org/whl/cu121
+torch>=2.2.0
+torchaudio>=2.2.0
+faster-whisper>=1.0.0

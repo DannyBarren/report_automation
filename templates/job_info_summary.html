@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Job Info Summary{% endblock %}
+{% block header_title %}Job Info Summary{% endblock %}
+{% block header_subtitle %}{% if client %}{{ client.display_label }}{% endif %}{% if capture.job_address %} · {{ capture.job_address }}{% endif %}{% endblock %}
+{% block wrap_class %} wrap--wide{% endblock %}
+
+{% block head %}
+<style>
+    .ji-bar { display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap; margin-bottom:1rem; }
+    .ji-actions { display:flex; gap:0.5rem; flex-wrap:wrap; }
+    .ji-meta { color:var(--muted); font-size:0.82rem; margin:0 0 1rem; }
+    .ji-doc { border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); padding:1.4rem 1.6rem; line-height:1.6; }
+    .ji-doc h3 { color:var(--accent); font-size:1rem; text-transform:uppercase; letter-spacing:0.04em; margin:1.3rem 0 0.4rem; }
+    .ji-doc h3:first-child { margin-top:0; }
+    .ji-doc p { margin:0 0 0.7rem; }
+    .ji-doc .bullet { margin:0 0 0.35rem 1.1rem; position:relative; }
+    .ji-doc .bullet::before { content:"•"; color:var(--accent); position:absolute; left:-1.1rem; }
+    .ji-empty { border:1px dashed var(--border); border-radius:var(--radius); padding:2rem 1.5rem; text-align:center; color:var(--muted); }
+    .copy-ok { color:#34d399; font-size:0.82rem; margin-left:0.5rem; opacity:0; transition:opacity 0.2s ease; }
+    .copy-ok.show { opacity:1; }
+    form.inline { display:inline; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ji-bar">
+    <a class="btn btn-secondary" href="{{ url_for('client_detail', client_id=capture.client_id) }}">← Back to client</a>
+    {% if summary and summary.summary_text %}
+    <div class="ji-actions">
+        <button type="button" class="btn btn-secondary" id="copy-btn">Copy text</button>
+        <span class="copy-ok" id="copy-ok">Copied ✓</span>
+        <a class="btn btn-secondary" href="{{ url_for('job_info_summary_pdf', session_id=capture.id) }}">Download PDF</a>
+        <form class="inline" method="post" action="{{ url_for('job_info_summary_generate', session_id=capture.id) }}">
+            <input type="hidden" name="force" value="1">
+            <button type="submit" class="btn">Regenerate</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+{% if summary and summary.summary_text %}
+<p class="ji-meta">
+    Generated {{ (summary.updated_at or summary.created_at).strftime('%B %d, %Y at %I:%M %p') if (summary.updated_at or summary.created_at) else '' }}
+    {% if summary.model_name %} · {{ summary.model_name }}{% endif %}
+</p>
+<div class="ji-doc" id="ji-doc">
+    {% set headings = ['overview', 'work & observations', 'key findings', 'supplemental notes', 'recommended next steps'] %}
+    {% for raw in summary.summary_text.split('\n') %}
+        {% set line = raw.strip() %}
+        {% if line %}
+            {% if line.lower().rstrip(':') in headings %}
+    <h3>{{ line.rstrip(':') }}</h3>
+            {% elif line.startswith('- ') or line.startswith('• ') %}
+    <p class="bullet">{{ line.lstrip('-• ') }}</p>
+            {% else %}
+    <p>{{ line }}</p>
+            {% endif %}
+        {% endif %}
+    {% endfor %}
+</div>
+<textarea id="ji-raw" style="position:absolute;left:-9999px;top:-9999px;" aria-hidden="true">{{ summary.summary_text }}</textarea>
+{% else %}
+<div class="ji-empty">
+    <p>No Job Info Summary is available for this session yet.</p>
+    <p style="font-size:0.85rem;">This is an AI-written client handoff note that synthesizes everything captured during the session. If you just finished a report, it may still be generating in the background — reload in a moment, or generate it now.</p>
+    <div style="display:flex;gap:0.5rem;justify-content:center;flex-wrap:wrap;margin-top:1rem;">
+        <form method="post" action="{{ url_for('job_info_summary_generate', session_id=capture.id) }}">
+            <button type="submit" class="btn">Generate summary</button>
+        </form>
+        <a class="btn btn-secondary" href="{{ url_for('job_info_summary_view', session_id=capture.id) }}">Reload</a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var btn = document.getElementById('copy-btn');
+    var raw = document.getElementById('ji-raw');
+    var ok = document.getElementById('copy-ok');
+    if (!btn || !raw) return;
+    btn.addEventListener('click', function () {
+        var text = raw.value;
+        var done = function () {
+            if (ok) { ok.classList.add('show'); setTimeout(function () { ok.classList.remove('show'); }, 1800); }
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(done).catch(function () {
+                raw.select(); document.execCommand('copy'); done();
+            });
+        } else {
+            raw.select(); document.execCommand('copy'); done();
+        }
+    });
+})();
+</script>
+{% endblock %}
