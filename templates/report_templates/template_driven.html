@@ -1,0 +1,637 @@
+{#
+  template_driven.html — Professional print layout (WeasyPrint).
+
+  Validation examples (visual QA):
+  A) 6-section home inspection: branded cover, summary with 2 red priority rows,
+     2-column photo appendix, section pages with green/yellow/red pills + callouts.
+  B) 12-section room walkthrough: running header, footer "Page N of M", wrapped narratives.
+  C) One safety-critical section: red badge, recommendation callout, disclaimer on last page.
+#}
+{% set style = template.pdf_styling %}
+{% set summary_title = template.content_structure.summary_page_title if template.content_structure else 'Executive Summary' %}
+{% set footer_prefix = footer_text | replace('{page}', '') | replace('{total_pages}', '') | replace('{total}', '') | trim %}
+{% set margin = style.page_margin_mm %}
+
+<style>
+  @page cover {
+    size: A4;
+    margin: 0;
+  }
+  @page {
+    size: A4;
+    margin: {{ margin }};
+    {% if style.show_running_header %}
+    @top-left {
+      content: element(page-header);
+      vertical-align: bottom;
+      padding-bottom: 4px;
+      font-size: 8.5pt;
+      color: {{ style.secondary_color }};
+    }
+  @top-right {
+      content: "{{ report_date }}";
+      font-size: 8.5pt;
+      color: {{ style.secondary_color }};
+      vertical-align: bottom;
+      padding-bottom: 4px;
+    }
+    {% endif %}
+    @bottom-center {
+      content: "{{ footer_prefix }} · Page " counter(page) " of " counter(pages);
+      font-size: 8pt;
+      color: {{ style.secondary_color }};
+      letter-spacing: 0.02em;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  .td-report {
+    font-family: {{ style.font_family }};
+    color: #0f172a;
+    font-size: 10.5pt;
+    line-height: 1.55;
+  }
+
+  .td-running-header {
+    position: running(page-header);
+    font-weight: 600;
+    color: {{ style.primary_color }};
+    font-size: 9pt;
+    max-width: 70%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* —— Cover —— */
+  .td-cover {
+    page: cover;
+    min-height: 297mm;
+    padding: 22mm 20mm;
+    background: linear-gradient(165deg, #f8fafc 0%, #ffffff 42%, #f1f5f9 100%);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .td-cover-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    border-bottom: 3px solid {{ style.primary_color }};
+    padding-bottom: 18px;
+    margin-bottom: 28px;
+  }
+  .td-logo { max-height: {{ style.logo_max_height_px }}px; max-width: 200px; object-fit: contain; }
+  .td-cover-brand {
+    text-align: right;
+    font-size: 10pt;
+    color: {{ style.secondary_color }};
+    line-height: 1.4;
+  }
+  .td-cover-brand strong { display: block; font-size: 11pt; color: {{ style.primary_color }}; }
+  .td-cover h1 {
+    color: {{ style.primary_color }};
+    font-size: 28pt;
+    font-weight: 700;
+    line-height: 1.15;
+    margin: 0 0 10px;
+    letter-spacing: -0.02em;
+  }
+  .td-cover .sub {
+    color: {{ style.secondary_color }};
+    font-size: 13pt;
+    margin: 0 0 24px;
+    font-weight: 500;
+  }
+  .td-cover-address {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  }
+  .td-cover-address .label {
+    font-size: 8pt;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: {{ style.secondary_color }};
+    margin-bottom: 4px;
+  }
+  .td-cover-address .value {
+    font-size: 14pt;
+    font-weight: 600;
+    color: #0f172a;
+  }
+  .td-cover-meta {
+    font-size: 10pt;
+    color: #475569;
+    line-height: 1.65;
+  }
+  .td-cover-meta dt { float: left; clear: left; width: 110px; font-weight: 600; color: #334155; }
+  .td-cover-meta dd { margin: 0 0 6px 120px; }
+  .td-cover-footer {
+    font-size: 8.5pt;
+    color: #94a3b8;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 12px;
+  }
+
+  /* —— Summary —— */
+  .td-summary {
+    page-break-after: always;
+    padding: 4px 0 8px;
+  }
+  .td-summary h2 {
+    color: {{ style.primary_color }};
+    font-size: 18pt;
+    font-weight: 700;
+    margin: 0 0 6px;
+    letter-spacing: -0.01em;
+  }
+  .td-summary .lead {
+    color: #475569;
+    font-size: 10.5pt;
+    margin: 0 0 16px;
+    max-width: 95%;
+  }
+  .td-sev-legend {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .td-sev-legend span {
+    font-size: 8.5pt;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid;
+  }
+  .td-counts {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .td-count-card {
+    text-align: center;
+    padding: 12px 8px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+  }
+  .td-count-card .num { font-size: 22pt; font-weight: 700; line-height: 1; }
+  .td-count-card .lbl { font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; margin-top: 4px; }
+  .td-priority {
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 16px;
+  }
+  .td-priority h3 { margin: 0 0 8px; font-size: 11pt; color: #9a3412; }
+  .td-priority ul { margin: 0; padding-left: 18px; }
+  .td-priority li { margin-bottom: 4px; font-size: 10pt; }
+  .td-allclear {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 16px;
+  }
+  .td-allclear h3 { margin: 0 0 4px; font-size: 11pt; color: #166534; }
+  .td-allclear p { margin: 0; font-size: 10pt; color: #166534; }
+  .td-summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9.5pt;
+    margin-top: 8px;
+  }
+  .td-summary-table th {
+    text-align: left;
+    padding: 8px 10px;
+    background: {{ style.primary_color }};
+    color: #fff;
+    font-weight: 600;
+  }
+  .td-summary-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #e2e8f0;
+    vertical-align: top;
+  }
+  .td-summary-table tr:nth-child(even) td { background: #f8fafc; }
+  .td-pill {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 8pt;
+    font-weight: 700;
+    border: 1px solid;
+    white-space: nowrap;
+  }
+
+  /* —— Photo appendix —— */
+  .td-appendix {
+    page-break-after: always;
+    padding-top: 4px;
+  }
+  .td-appendix h2 {
+    color: {{ style.primary_color }};
+    font-size: 16pt;
+    margin: 0 0 4px;
+  }
+  .td-appendix .sub { color: #64748b; font-size: 9.5pt; margin: 0 0 14px; }
+  .td-photo-grid {
+    display: grid;
+    grid-template-columns: {% if photo_grid_columns == 1 %}1fr{% else %}1fr 1fr{% endif %};
+    gap: 14px 16px;
+  }
+  .td-photo-item {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .td-photo-item img {
+    width: 100%;
+    aspect-ratio: {{ style.photo_aspect_ratio }};
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    display: block;
+  }
+  .td-photo-item .cap {
+    font-size: 8.5pt;
+    color: #475569;
+    margin-top: 6px;
+    line-height: 1.4;
+  }
+  .td-photo-item .cap strong { color: #334155; display: block; margin-bottom: 2px; font-size: 9pt; }
+
+  /* —— Sections —— */
+  .td-section {
+    margin-bottom: 20px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+  }
+  .td-section.page-break { page-break-before: always; }
+  .td-section-head {
+    background: {{ style.primary_color }};
+    color: #fff;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    page-break-after: avoid;
+  }
+  .td-section-head h3 {
+    margin: 0;
+    font-size: 13pt;
+    font-weight: 700;
+    flex: 1;
+  }
+  .td-section-body {
+    padding: 14px 16px 16px;
+  }
+  .td-narrative {
+    margin: 0 0 12px;
+    text-align: justify;
+    hyphens: auto;
+    orphans: 3;
+    widows: 3;
+  }
+  .td-fields {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9.5pt;
+    margin: 10px 0;
+  }
+  .td-fields td {
+    padding: 7px 10px;
+    border: 1px solid #e2e8f0;
+    vertical-align: top;
+  }
+  .td-fields td:first-child {
+    width: 32%;
+    font-weight: 600;
+    background: #f8fafc;
+    color: #334155;
+  }
+  {% if style.table_style == 'striped' %}
+  .td-fields tr:nth-child(even) td:last-child { background: #fafafa; }
+  {% endif %}
+  .td-callout {
+    margin: 12px 0 0;
+    padding: 12px 14px 12px 16px;
+    border-left: 4px solid {{ style.accent_color }};
+    background: linear-gradient(90deg, #eff6ff 0%, #f8fafc 100%);
+    border-radius: 0 8px 8px 0;
+    font-size: 10pt;
+    page-break-inside: avoid;
+  }
+  .td-callout strong {
+    display: block;
+    color: {{ style.primary_color }};
+    font-size: 9pt;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+  }
+  .td-section-photo {
+    margin-top: 14px;
+    page-break-inside: avoid;
+  }
+  .td-section-photo img {
+    width: 100%;
+    max-height: 220px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+  }
+  .td-section-photo figcaption {
+    font-size: 8.5pt;
+    color: #64748b;
+    margin-top: 6px;
+    line-height: 1.35;
+  }
+  /* —— Multi-photo section gallery (one figure per MARK tap / cue) —— */
+  .td-section-gallery {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: {% if photo_grid_columns == 1 %}1fr{% else %}1fr 1fr{% endif %};
+    gap: 12px 14px;
+  }
+  .td-gallery-item {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .td-gallery-item img {
+    width: 100%;
+    aspect-ratio: {{ style.photo_aspect_ratio }};
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    display: block;
+  }
+  .td-gallery-item figcaption {
+    font-size: 8pt;
+    color: #64748b;
+    margin-top: 5px;
+    line-height: 1.35;
+  }
+  .td-gallery-item .idx {
+    display: inline-block;
+    min-width: 16px;
+    padding: 0 5px;
+    margin-right: 5px;
+    border-radius: 999px;
+    background: {{ style.primary_color }};
+    color: #fff;
+    font-size: 7.5pt;
+    font-weight: 700;
+    text-align: center;
+  }
+  .td-photo-count {
+    font-size: 8pt;
+    font-weight: 600;
+    color: #64748b;
+    margin: 12px 0 0;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .td-photo-missing {
+    margin-top: 14px;
+    padding: 10px 12px;
+    border: 1px dashed #cbd5e1;
+    border-radius: 8px;
+    background: #f8fafc;
+    font-size: 8.5pt;
+    color: #64748b;
+    line-height: 1.4;
+    page-break-inside: avoid;
+  }
+
+  .td-disclaimer {
+    margin-top: 24px;
+    padding-top: 12px;
+    font-size: 8pt;
+    color: #64748b;
+    line-height: 1.45;
+    border-top: 1px solid #e2e8f0;
+    page-break-inside: avoid;
+  }
+</style>
+
+<div class="td-report">
+  {% if style.show_running_header %}
+  <div class="td-running-header">{{ header_text }}</div>
+  {% endif %}
+
+  <div class="td-cover">
+    <div>
+      <div class="td-cover-top">
+        <div>
+          {% if template.logo_url %}
+          <img class="td-logo" src="{{ template.logo_url }}" alt="{{ template.business_name or 'Logo' }}" />
+          {% endif %}
+        </div>
+        <div class="td-cover-brand">
+          {% if template.business_name %}<strong>{{ template.business_name }}</strong>{% endif %}
+          {{ report_date }}
+        </div>
+      </div>
+      <h1>{{ bundle.title }}</h1>
+      <p class="sub">{{ style.cover_subtitle }}</p>
+      {% if style.cover_show_job_address and job_address %}
+      <div class="td-cover-address">
+        <div class="label">{{ style.job_address_label }}</div>
+        <div class="value">{{ job_address }}</div>
+      </div>
+      {% endif %}
+      <dl class="td-cover-meta">
+        <dt>Report date</dt><dd>{{ report_date }}</dd>
+        {% if final.video_filename %}
+        <dt>Source recording</dt><dd>{{ final.video_filename }}</dd>
+        {% endif %}
+        <dt>Sections documented</dt><dd>{{ bundle.sections | length }}</dd>
+        <dt>Capture method</dt><dd>Guided video with spoken “{{ final.identification_phrase }}” cues</dd>
+      </dl>
+    </div>
+    <p class="td-cover-footer">GenerSwift · A Barren Business Development Product · Prepared for client, agent, and compliance review.</p>
+  </div>
+
+  {% if style.show_summary_page %}
+  <section class="td-summary">
+    <h2>{{ summary_title }}</h2>
+    <p class="lead">
+      This report summarizes {{ summary.section_count }} documented area(s) from a guided field inspection.
+      Severity reflects template rules and technician narration — verify on site when confidence is limited.
+    </p>
+
+    <div class="td-sev-legend">
+      {% for band, band_style in style.band_styles.items() %}
+      <span style="background:{{ band_style.bg }};color:{{ band_style.text }};border-color:{{ band_style.border }};">
+        {{ band_style.label }}
+      </span>
+      {% endfor %}
+    </div>
+
+    {% if style.summary_show_severity_counts %}
+    <div class="td-counts">
+      <div class="td-count-card" style="border-color:#86efac;background:#f0fdf4;">
+        <div class="num" style="color:#166534;">{{ summary.counts.green }}</div>
+        <div class="lbl">Satisfactory</div>
+      </div>
+      <div class="td-count-card" style="border-color:#fde047;background:#fefce8;">
+        <div class="num" style="color:#854d0e;">{{ summary.counts.yellow }}</div>
+        <div class="lbl">Attention</div>
+      </div>
+      <div class="td-count-card" style="border-color:#fca5a5;background:#fef2f2;">
+        <div class="num" style="color:#991b1b;">{{ summary.counts.red }}</div>
+        <div class="lbl">Action required</div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if summary.priority_rows %}
+    <div class="td-priority">
+      <h3>Priority findings</h3>
+      <ul>
+        {% for row in summary.priority_rows %}
+        <li><strong>{{ row.section_name }}</strong> — {{ row.severity_label }}{% if row.one_line %}: {{ row.one_line }}{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% elif summary.all_clear and summary.section_count %}
+    <div class="td-allclear">
+      <h3>No priority findings</h3>
+      <p>All {{ summary.section_count }} documented area(s) were assessed as satisfactory. No items were flagged for attention or action during this inspection.</p>
+    </div>
+    {% endif %}
+
+    {% if summary.recommendations %}
+    <div class="td-callout" style="margin-bottom:16px;">
+      <strong>Summary recommendations</strong>
+      <ul style="margin:0;padding-left:18px;">
+        {% for rec in summary.recommendations %}
+        <li style="margin-bottom:4px;">{{ rec }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <table class="td-summary-table">
+      <thead>
+        <tr>
+          <th>Section</th>
+          <th>Severity</th>
+          <th>Summary</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in summary.rows %}
+        <tr>
+          <td><strong>{{ row.section_name }}</strong></td>
+          <td>
+            <span class="td-pill" style="background:{{ row.bg }};color:{{ row.text }};border-color:{{ row.border }};">
+              {{ row.severity_label }}
+            </span>
+          </td>
+          <td>{{ row.one_line or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% if style.show_photo_appendix and photo_appendix | length >= 1 %}
+  <section class="td-appendix">
+    <h2>Visual evidence</h2>
+    <p class="sub">{{ photo_appendix | length }} time-stamped still{{ '' if photo_appendix | length == 1 else 's' }} captured during the guided walkthrough.</p>
+    <div class="td-photo-grid">
+      {% for photo in photo_appendix %}
+      <figure class="td-photo-item">
+        <img src="{{ photo.image_uri }}" alt="{{ photo.section_name }}" />
+        <figcaption class="cap">
+          <strong>{{ photo.section_name }}</strong>
+          {{ photo.caption }}
+        </figcaption>
+      </figure>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% for block in sections_ui %}
+  <section class="td-section{% if block.index > 0 and style.section_page_break == 'before' %} page-break{% endif %}">
+    <div class="td-section-head">
+      <h3>{{ block.sec.section_name }}</h3>
+      {% if block.show_badge %}
+      <span class="td-pill" style="background:{{ block.severity.bg }};color:{{ block.severity.text }};border-color:{{ block.severity.border }};">
+        {{ block.severity.label }}
+      </span>
+      {% endif %}
+    </div>
+    <div class="td-section-body">
+      <p class="td-narrative">{{ block.narrative }}</p>
+
+      {% if block.fields %}
+      <table class="td-fields">
+        <tbody>
+          {% for row in block.fields %}
+          <tr><td>{{ row.label }}</td><td>{{ row.value }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+
+      {% if block.show_recommendation %}
+      <div class="td-callout">
+        <strong>Recommendations</strong>
+        {{ block.recommendation }}
+      </div>
+      {% endif %}
+
+      {% if block.show_photo %}
+        {% if block.photo_count > 1 %}
+        <p class="td-photo-count">{{ block.photo_count }} marked stills in this area</p>
+        <div class="td-section-gallery">
+          {% for photo in block.photos %}
+          <figure class="td-gallery-item">
+            <img src="{{ photo.image_uri }}" alt="{{ block.sec.section_name }} — {{ photo.index }}" />
+            <figcaption>
+              {% if style.include_narration_in_caption %}<span class="idx">{{ photo.index }}</span>{{ photo.caption }}{% else %}
+              <span class="idx">{{ photo.index }}</span>Captured at {{ photo.timestamp | round(1) }}s
+              {% endif %}
+            </figcaption>
+          </figure>
+          {% endfor %}
+        </div>
+        {% else %}
+        {% set photo = block.photos[0] %}
+        <figure class="td-section-photo">
+          <img src="{{ photo.image_uri }}" alt="{{ block.sec.section_name }}" />
+          <figcaption>
+            {% if style.include_narration_in_caption %}{{ photo.caption }}{% else %}
+            Captured at {{ photo.timestamp | round(1) }}s
+            {% endif %}
+          </figcaption>
+        </figure>
+        {% endif %}
+      {% elif block.photo_missing %}
+      <div class="td-photo-missing">
+        <span>No still frame was available for this area. Refer to the narrative above and the source recording for visual detail.</span>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+  {% endfor %}
+
+  {% if style.show_disclaimer %}
+  <p class="td-disclaimer">{{ style.disclaimer_text }}</p>
+  {% endif %}
+</div>

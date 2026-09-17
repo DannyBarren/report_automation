@@ -1,0 +1,418 @@
+{
+  "schema_version": 3,
+  "report_type": "roofing_realty_inspection",
+  "document_class": "inspection_report",
+  "title": "Roofing Realty Inspection Report",
+  "business_name": "Structured Roofing Systems",
+  "job_address": "",
+  "logo_url": null,
+  "featured": true,
+  "template_description": "Professional roofing inspection using a streamlined 4-step narrated video workflow: Overview (general roof qualities + many wide shots), Components (penetrations & mounted equipment), Substrates (roof materials, construction & field damage), and Misc (supplemental data for future use). Zero computer vision \u2014 powered by precise STT timestamps + agentic LLM reasoning over your spoken observations. Produces clean, client-ready PDFs with extracted still frames, severity badges, and professional recommendations.",
+  "domain_expert_role": "Licensed Commercial & Residential Roofing Inspector",
+  "domain_expert_standards": "NRCA roofing practices, ASTM roof condition assessment, IBC/IRC roofing provisions, and manufacturer installation standards for shingle, TPO, EPDM, metal, and modified-bitumen systems. Conclusions are drawn only from narrated observations.",
+  "pdf_styling": {
+    "primary_color": "#1e3a8a",
+    "secondary_color": "#475569",
+    "accent_color": "#b91c1c",
+    "font_family": "Helvetica, Arial, sans-serif",
+    "header_style": "bold",
+    "photo_grid": "2-column with caption below",
+    "photo_aspect_ratio": "4/3",
+    "photo_caption_max_words": 52,
+    "include_timestamps": true,
+    "include_narration_in_caption": true,
+    "page_footer": "Confidential \u00b7 Structured Roofing Systems \u00b7 Page {page} of {total_pages}",
+    "page_header": "{report_title}",
+    "cover_subtitle": "Professional roof inspection \u2014 Overview \u2022 Components \u2022 Substrates",
+    "cover_show_job_address": true,
+    "job_address_label": "Property / job site",
+    "show_summary_page": true,
+    "show_photo_appendix": true,
+    "show_running_header": true,
+    "show_disclaimer": true,
+    "disclaimer_text": "This inspection report reflects visible and readily accessible roof conditions at the time of the guided field video inspection. It is a professional opinion only and is not a warranty, guarantee, structural engineering certification, or prediction of future performance. Latent or concealed defects may exist. All repair recommendations should be verified and performed by a licensed roofing contractor. Remaining life estimates are approximate and assume normal weather and maintenance.",
+    "recommendation_callout_style": "border-left accent",
+    "table_style": "striped",
+    "section_page_break": "before",
+    "severity_colors": {
+      "informational": "#64748b",
+      "no_issue": "#16a34a",
+      "minor": "#16a34a",
+      "moderate": "#f59e0b",
+      "major": "#dc2626",
+      "safety_critical": "#991b1b"
+    },
+    "severity_bands": {
+      "informational": "green",
+      "no_issue": "green",
+      "none": "green",
+      "minor": "green",
+      "moderate": "yellow",
+      "major": "red",
+      "safety_critical": "red"
+    }
+  },
+  "guidance": {
+    "intro_script": "Welcome to the Roofing Realty Inspection with Structured Roofing Systems. We will document the roof using a clear 4-step workflow. First: Overview \u2014 capture the general qualities of the entire roof with many wide shots from all angles and slopes. Second: Components \u2014 document anything that penetrates or is mounted on the roof. Third: Substrates \u2014 show the actual roof materials, how the roof is built, and any damage to the construction. Fourth: Miscellaneous \u2014 capture anything else useful for future reports or deeper analysis (this section is stored separately and will not appear in the main body of this report). At every stop, hold steady, say \u201cMark this.\u201d clearly, then describe exactly what you are showing. Speak in complete sentences. Safety first at all times.",
+    "outro_script": "Inspection complete. Thank you for the detailed narration across Overview, Components, Substrates, and Misc. Upload this video to generate your professional PDF report. The Misc section has been captured for future use.",
+    "identification_phrase": "Mark this.",
+    "estimated_total_minutes": 18,
+    "sections": [
+      {
+        "section_id": "overview",
+        "title": "Overview",
+        "capture_order": 1,
+        "voice_prompt": "This is the Overview step. Film wide establishing shots of the entire roof from as many safe angles and vantage points as possible \u2014 front, rear, both sides, ridge views, eave views, and any different slopes or roof sections. You can easily take 10 to 15 photos here. Say \u201cMark this.\u201d after each significant wide shot or change in angle. Narrate the general qualities of the roof: overall profile and shape, number of slopes or planes, general condition impression from a distance, any obvious major features or issues visible from the ground, and how the roof sits on the building. This section is only about the big picture and general qualities \u2014 do not zoom in on specific components or materials yet.",
+        "on_screen_text": "OVERVIEW\nWide shots from all angles & slopes \u2022 General roof profile & qualities\n(10\u201315 photos encouraged)",
+        "worker_instructions": "Walk the full perimeter of the building (or all safe vantage points) and capture the WHOLE roof, not close-ups. For each new angle or slope, hold the camera steady for 2\u20133 seconds, say \u201cMark this.\u201d, then describe what you see in a full sentence (e.g. \u201cThis is the front slope, a moderately pitched gable in fair overall condition\u201d). You are done when every visible roof plane has at least one wide shot and you have described the overall profile, the number of slopes, and your general condition impression. Do NOT zoom into vents, seams, or damage yet \u2014 that comes later.",
+        "success_criteria": [
+          "At least 8 wide establishing shots covering every visible roof plane/slope.",
+          "Spoken description of overall roof profile, shape, and number of slopes.",
+          "A stated general condition impression from a distance (e.g. good/fair/poor).",
+          "No close-up component or material shots in this step."
+        ],
+        "estimated_seconds": 360,
+        "required": true,
+        "min_marks": 8,
+        "suggested_phrases": [
+          "overall",
+          "profile",
+          "slope",
+          "general condition",
+          "well maintained",
+          "good condition",
+          "ridge",
+          "eave",
+          "plane",
+          "angle",
+          "big picture",
+          "from ground",
+          "appearance"
+        ]
+      },
+      {
+        "section_id": "components",
+        "title": "Components",
+        "capture_order": 2,
+        "voice_prompt": "This is the Components step. Document every structure or item that penetrates the roof surface or is mounted on top of the roof. This includes HVAC units and curbs, skylights, chimneys, flues, satellite dishes, antennas, solar panels, vents, pipes, roof jacks, and any other mounted or penetrating equipment. For each significant item, get a clear shot and say \u201cMark this.\u201d then describe: what the item is, its location on the roof, its condition, how it is flashed or sealed to the roof, and any visible issues (leaks, rust, poor flashing, damage, etc.). Mark each important component separately.",
+        "on_screen_text": "COMPONENTS\nPenetrations & mounted equipment\nHVAC \u2022 Skylights \u2022 Chimneys \u2022 Antennas \u2022 Vents \u2022 Solar \u2022 etc.",
+        "worker_instructions": "Move across the roof and stop at EVERY penetration or mounted item. Mark each one separately \u2014 do not lump two vents into one mark. For each, say \u201cMark this.\u201d then state four things: (1) what it is, (2) where it is on the roof, (3) its condition, and (4) how it is flashed/sealed and whether that flashing looks sound. Call out leaks, rust, cracked boots, or lifted flashing explicitly. You are done when there are no un-documented penetrations or mounted items left on the roof.",
+        "success_criteria": [
+          "One separate mark per significant penetration or mounted item.",
+          "Each item's type, location, and condition stated aloud.",
+          "Flashing/sealing condition described for each item.",
+          "Any leak, rust, or flashing failure explicitly called out."
+        ],
+        "estimated_seconds": 300,
+        "required": true,
+        "min_marks": 2,
+        "suggested_phrases": [
+          "HVAC",
+          "skylight",
+          "chimney",
+          "antenna",
+          "satellite",
+          "vent",
+          "pipe",
+          "curb",
+          "solar",
+          "mounted",
+          "penetration",
+          "flashing",
+          "seal",
+          "leak",
+          "rust"
+        ]
+      },
+      {
+        "section_id": "substrates",
+        "title": "Substrates",
+        "capture_order": 3,
+        "voice_prompt": "This is the Substrates step. Show the actual materials the roof is made of and how it is constructed. Some roofs have multiple materials \u2014 document each type. Film close-ups and representative areas of shingles, TPO, EPDM, metal panels (R-panel, standing seam, etc.), modified bitumen, built-up, or any other substrate. Also capture construction details: seams, laps, fasteners, insulation if visible, slope transitions, and especially any damage to the roof material itself (splits, tears, punctures, granule loss in context of the material, blistering, seam failure, etc.). Say \u201cMark this.\u201d for each important material area or damage example and describe what the roof is made of, how it was built, and the current condition of the materials and construction.",
+        "on_screen_text": "SUBSTRATES\nRoof materials \u2022 Construction details \u2022 Seams \u2022 Field damage & condition\n(Shingles \u2022 Metal \u2022 TPO \u2022 Rubber \u2022 etc.)",
+        "worker_instructions": "Get in close on the roof field itself. Capture a representative close-up of EACH material type present (if the roof mixes materials, document each one). For every material area or damage example, say \u201cMark this.\u201d then describe: what the material is, how it is put together (seams, laps, fasteners, transitions), and its current condition. Deliberately hunt for and mark field damage \u2014 splits, tears, punctures, blistering, seam failure, granule loss \u2014 and describe its location and extent. You are done when every material type is documented and any visible field damage has its own marked close-up.",
+        "success_criteria": [
+          "A representative close-up of every roof material type present.",
+          "Construction details (seams, laps, fasteners, transitions) described.",
+          "Each area of field damage marked and described with location/extent.",
+          "At least 4 substrate marks for a typical roof."
+        ],
+        "estimated_seconds": 300,
+        "required": true,
+        "min_marks": 4,
+        "suggested_phrases": [
+          "shingle",
+          "TPO",
+          "EPDM",
+          "metal",
+          "R-panel",
+          "standing seam",
+          "modified bitumen",
+          "built-up",
+          "substrate",
+          "seam",
+          "lap",
+          "fastener",
+          "split",
+          "tear",
+          "puncture",
+          "granule loss",
+          "blister",
+          "construction",
+          "damage to material"
+        ]
+      },
+      {
+        "section_id": "misc",
+        "title": "Miscellaneous / Supplemental",
+        "capture_order": 4,
+        "voice_prompt": "This is the Miscellaneous step. Use it to capture any additional items, context, notes, or observations that may be useful for generating future reports or for deeper analysis later. This can include site conditions, drainage away from the building, nearby trees, access limitations, client comments, or anything else not covered in Overview, Components, or Substrates. Say \u201cMark this.\u201d and describe what you are capturing and why it might be useful later. Note: This section is stored for future use and will NOT be used to generate the main sections of this specific report.",
+        "on_screen_text": "MISC / SUPPLEMENTAL\nAnything else useful for future reports or analysis\n(Not included in this report's main body)",
+        "worker_instructions": "Optional catch-all. If there is anything worth recording that did not fit Overview, Components, or Substrates \u2014 drainage, grading, overhanging trees, access limitations, or a client comment \u2014 say \u201cMark this.\u201d and explain what it is and why it may matter later. If nothing applies, you can skip this step; it is not required. Nothing captured here appears in the main body of the report.",
+        "success_criteria": [
+          "Any relevant supplemental item is marked with a spoken explanation of why it matters.",
+          "It is acceptable to record zero marks here (the step is optional)."
+        ],
+        "estimated_seconds": 120,
+        "required": false,
+        "min_marks": 0,
+        "suggested_phrases": [
+          "misc",
+          "supplemental",
+          "future use",
+          "additional",
+          "context",
+          "site condition",
+          "access",
+          "client note",
+          "limitation",
+          "tree",
+          "drainage",
+          "grading"
+        ]
+      }
+    ]
+  },
+  "content_structure": {
+    "summary_page_title": "Executive Summary",
+    "organization": "section_order",
+    "sections": [
+      {
+        "section_id": "overview",
+        "title": "Overview",
+        "default_text": "General roof profile, slopes, and overall qualities were documented through multiple wide establishing shots. No spoken findings were recorded beyond the visual walkthrough for this area.",
+        "fields": [
+          "condition_summary",
+          "specific_findings",
+          "recommendations",
+          "severity"
+        ],
+        "field_specs": [
+          {
+            "key": "condition_summary",
+            "label": "Overall roof profile & general condition",
+            "field_type": "text",
+            "required": true
+          },
+          {
+            "key": "specific_findings",
+            "label": "Key general observations from wide views",
+            "field_type": "text",
+            "required": true
+          },
+          {
+            "key": "recommendations",
+            "label": "High-level observations",
+            "field_type": "text",
+            "required": true
+          },
+          {
+            "key": "severity",
+            "label": "Overall severity from overview",
+            "field_type": "enum",
+            "required": true
+          }
+        ],
+        "writer_instructions": "Write a professional big-picture summary of the roof based only on the wide overview narration and photos. Describe the overall profile, number and orientation of slopes/planes, general shape on the building, and the overall visual condition and maintenance impression from a distance. Note any obvious major features visible from the ground. Keep this high-level \u2014 do not drill into specific components or material details (those come in later sections). Use neutral professional language suitable for a real estate or maintenance report. Do not invent details not present in the narration.",
+        "tone": "professional neutral",
+        "min_summary_words": 60,
+        "show_photo": true,
+        "show_severity_badge": true,
+        "image_placement": {
+          "required": true,
+          "position": "after_summary",
+          "caption_style": "timestamp_narration",
+          "max_images": 15
+        },
+        "layout_hints": {
+          "page_break_before": true,
+          "callout_style": "border-left accent",
+          "columns": 1,
+          "emphasis": "normal"
+        }
+      },
+      {
+        "section_id": "components",
+        "title": "Components",
+        "default_text": "Roof penetrations and mounted equipment were documented per technician narration. Where narration was limited, the still frames should be reviewed directly.",
+        "fields": [
+          "condition_summary",
+          "specific_findings",
+          "recommendations",
+          "severity"
+        ],
+        "field_specs": [
+          {
+            "key": "condition_summary",
+            "label": "Components condition summary",
+            "field_type": "text",
+            "required": true
+          },
+          {
+            "key": "specific_findings",
+            "label": "Individual component observations",
+            "field_type": "text",
+            "required": true
+          },
+          {
+            "key": "recommendations",
+            "label": "Recommended actions for components",
+            "field_type": "text",
+            "required": true
+          },
+          {
+            "key": "severity",
+            "label": "Severity",
+            "field_type": "enum",
+            "required": true
+          }
+        ],
+        "writer_instructions": "Create a clear, organized summary of all roof penetrations and mounted equipment documented. List each significant component (HVAC, skylights, chimneys, antennas, vents, solar, etc.) with its location and observed condition. Note flashing/sealing quality and any issues (leaks, rust, poor installation, damage). Group similar items if many. Elevate severity for items creating active or high-risk water intrusion. Recommendations should be specific and practical. Professional neutral tone for realty or repair planning use. When several items are marked, address each in photo order rather than lumping them together.",
+        "tone": "professional neutral",
+        "min_summary_words": 55,
+        "show_photo": true,
+        "show_severity_badge": true,
+        "image_placement": {
+          "required": true,
+          "position": "after_summary",
+          "caption_style": "timestamp_narration",
+          "max_images": 20
+        },
+        "layout_hints": {
+          "page_break_before": true,
+          "callout_style": "border-left accent",
+          "columns": 1,
+          "emphasis": "normal"
+        }
+      },
+      {
+        "section_id": "substrates",
+        "title": "Substrates",
+        "default_text": "Roof materials, construction details, and condition of the roof field were documented per technician narration. Where narration was limited, the still frames should be reviewed directly.",
+        "fields": [
+          "condition_summary",
+          "specific_findings",
+          "recommendations",
+          "severity"
+        ],
+        "field_specs": [
+          {
+            "key": "condition_summary",
+            "label": "Substrate & construction condition",
+            "field_type": "text",
+            "required": true
+          },
+          {
+            "key": "specific_findings",
+            "label": "Material types, construction & damage details",
+            "field_type": "text",
+            "required": true
+          },
+          {
+            "key": "recommendations",
+            "label": "Recommended actions for roof materials & construction",
+            "field_type": "text",
+            "required": true
+          },
+          {
+            "key": "severity",
+            "label": "Severity",
+            "field_type": "enum",
+            "required": true
+          }
+        ],
+        "writer_instructions": "Provide a factual, detailed summary of the roof substrates and construction. Clearly identify all material types present (shingles, TPO, metal panels, EPDM, modified bitumen, etc.) and note if the roof uses multiple substrates. Describe visible construction details (seams, laps, fastening, transitions). Document any damage to the roof materials or construction itself (splits, tears, punctures, seam failure, blistering, granule loss patterns, etc.) with locations and extent. Tie severity to impact on watertightness and remaining service life. Recommendations should address root causes (e.g. seam repair method, material-specific fixes). Professional neutral to advisory tone.",
+        "tone": "professional neutral",
+        "min_summary_words": 65,
+        "show_photo": true,
+        "show_severity_badge": true,
+        "image_placement": {
+          "required": true,
+          "position": "after_summary",
+          "caption_style": "timestamp_narration",
+          "max_images": 20
+        },
+        "layout_hints": {
+          "page_break_before": true,
+          "callout_style": "border-left accent",
+          "columns": 1,
+          "emphasis": "normal"
+        }
+      },
+      {
+        "section_id": "misc",
+        "title": "Miscellaneous / Supplemental Data",
+        "default_text": "No supplemental observations were captured for future use during this inspection.",
+        "fields": [
+          "condition_summary",
+          "specific_findings",
+          "recommendations",
+          "severity"
+        ],
+        "field_specs": [
+          {
+            "key": "condition_summary",
+            "label": "Summary of supplemental items captured",
+            "field_type": "text",
+            "required": true
+          },
+          {
+            "key": "specific_findings",
+            "label": "Details of miscellaneous observations",
+            "field_type": "text",
+            "required": true
+          },
+          {
+            "key": "recommendations",
+            "label": "Notes for future use",
+            "field_type": "text",
+            "required": false
+          },
+          {
+            "key": "severity",
+            "label": "Severity",
+            "field_type": "enum",
+            "required": false
+          }
+        ],
+        "writer_instructions": "This section contains supplemental data captured for future report generation or deeper analysis and is not part of the main report body for this inspection. Provide a brief, neutral summary of what was documented in the Misc section. List key items or observations without forcing them into the main narrative. If nothing significant was captured, state that clearly using the default_text. Use 'informational' severity unless the content clearly warrants higher. Keep this section light and factual.",
+        "tone": "professional neutral",
+        "min_summary_words": 30,
+        "show_photo": true,
+        "show_severity_badge": false,
+        "image_placement": {
+          "required": false,
+          "position": "appendix_only",
+          "caption_style": "timestamp_only",
+          "max_images": 20
+        },
+        "layout_hints": {
+          "page_break_before": true,
+          "callout_style": "plain",
+          "columns": 1,
+          "emphasis": "muted"
+        }
+      }
+    ]
+  }
+}

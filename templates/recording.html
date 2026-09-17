@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#000000">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Recording · GenerSwift - JobDoc Demo v1</title>
+  <link rel="manifest" href="{{ url_for('web_manifest') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon.svg') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/field_recorder.css') }}">
+</head>
+<body class="rec-body">
+<div id="field-rec-root" class="rec-screen">
+
+  {# ===== Layer 1: full-screen live camera ===== #}
+  <section class="video-stage" id="video-stage" aria-label="Camera preview">
+    <video id="rec-preview-video" playsinline webkit-playsinline autoplay muted></video>
+    <div class="rec-scrim rec-scrim--top" aria-hidden="true"></div>
+    <div class="rec-scrim rec-scrim--bottom" aria-hidden="true"></div>
+    <p class="visually-hidden" id="overlay-screen-text"></p>
+    <span class="tap-mark-hint" id="tap-mark-hint" aria-hidden="true">Tap anywhere to MARK</span>
+  </section>
+
+  {# ===== Layer 2: top bar — title, address, progress, step dots ===== #}
+  <header class="rec-topbar glass" id="guided-dock">
+    <div class="rec-topbar-row">
+      <a class="rec-icon-btn" href="{{ url_for('index') }}" aria-label="Exit recording" id="btn-exit">✕</a>
+      <div class="rec-title-block">
+        <p class="rec-report-title" id="rec-report-title">{{ selected_titles | join(' + ') if selected_titles else 'Field report' }}</p>
+        {% if job_address %}<p class="rec-job-address" id="rec-job-address">{{ job_address }}</p>{% endif %}
+      </div>
+      <button type="button" class="rec-icon-btn" id="btn-voice-toggle" aria-pressed="false" aria-label="Voice prompts on or off" title="Voice prompts ON — tap to mute">🔊</button>
+      <button type="button" class="rec-icon-btn" id="btn-high-vis" aria-pressed="false" title="High contrast">☀</button>
+    </div>
+    <p class="rec-progress-label" id="dock-progress">Loading steps…</p>
+    <div class="rec-progress-track" aria-hidden="true"><div class="rec-progress-fill" id="step-progress-fill"></div></div>
+    <div class="rec-step-dots" id="rec-step-dots" aria-hidden="true"></div>
+  </header>
+
+  {# ===== Layer 3: status chips (recording lamp, timer, countdown, mic) ===== #}
+  <div class="rec-status">
+    <div class="rec-lamp glass" id="rec-lamp"><span class="dot" aria-hidden="true"></span><span id="rec-lamp-label">Ready</span></div>
+    <div class="rec-timer glass" id="rec-timer" aria-label="Elapsed">0:00</div>
+    <span class="rec-countdown" id="rec-countdown" hidden></span>
+    <div class="rec-mic glass" id="rec-mic" title="Microphone level" role="status" aria-live="polite">
+      <span aria-hidden="true">🎙️</span>
+      <span class="rec-mic-label" id="rec-mic-label">Mic</span>
+      <div class="rec-mic-track" aria-hidden="true"><div class="rec-mic-fill" id="audio-meter-fill"></div></div>
+    </div>
+  </div>
+
+  {# Persistent, always-on recording indicator — pulsing dot + label + live timer.
+     Shown for the whole session (across every step) and hidden when recording stops. #}
+  <div class="rec-live-badge" id="rec-live-badge" role="status" aria-live="polite" hidden>
+    <span class="rec-live-dot" aria-hidden="true"></span>
+    <span class="rec-live-label" id="rec-live-label">REC</span>
+    <span class="rec-live-time" id="rec-live-time">00:00</span>
+  </div>
+
+  {# ===== Layer 4: center guidance card ===== #}
+  <div class="rec-guidance glass" id="rec-guidance">
+    <button type="button" class="rec-guidance-collapse" id="btn-guidance-collapse" aria-label="Collapse guidance">▾</button>
+    <h1 class="dock-title" id="dock-title">—</h1>
+    <p class="dock-screen" id="dock-screen"></p>
+    <div class="mark-reminder" id="overlay-mark-cue" role="status">
+      <span class="mark-reminder-label">Say</span>
+      <span class="mark-phrase">{{ identification_phrase }}</span>
+      <span class="mark-reminder-label">then describe it</span>
+    </div>
+    <p class="dock-voice" id="dock-voice"></p>
+    <p class="walk-hint" id="walk-hint"></p>
+    <div class="rec-voice-controls">
+      <button type="button" class="rec-text-btn" id="btn-speak-step">🔊 Speak prompt</button>
+    </div>
+  </div>
+
+  {# Transient status toast (auto-hides) #}
+  <div class="rec-toast-wrap" aria-live="polite"><span class="toast" id="rec-toast"><span id="rec-msg"></span></span></div>
+
+  {# Recovery / draft / retry banners #}
+  <div class="rec-banner glass" id="recover-bar" hidden>
+    <p>A recording was interrupted on this device. Recover &amp; upload it?</p>
+    <div class="rec-banner-actions">
+      <button type="button" class="btn" id="btn-recover">Recover &amp; upload</button>
+      <button type="button" class="btn btn-secondary" id="btn-discard-recover">Discard</button>
+    </div>
+  </div>
+  <div class="rec-banner glass" id="draft-restore" hidden>
+    <p>A previous recording was saved here after an upload failure.</p>
+    <div class="rec-banner-actions">
+      <button type="button" class="btn" id="btn-restore-draft">Restore &amp; upload</button>
+      <button type="button" class="btn btn-secondary" id="btn-discard-draft">Discard</button>
+    </div>
+  </div>
+
+  {# ===== Layer 5: bottom controls ===== #}
+  <div class="rec-controls">
+    <div class="upload-progress" id="upload-progress" hidden><div class="upload-progress-fill" id="upload-progress-fill"></div></div>
+
+    <div class="marks-timeline" id="marks-timeline" hidden>
+      <div class="marks-track" id="marks-track" aria-label="Marks so far"></div>
+      <button type="button" class="mark-undo" id="btn-undo-mark">↩ Undo</button>
+    </div>
+
+    <div class="rec-controls-secondary glass">
+      <button type="button" class="rec-chip-btn" id="btn-flip-cam" aria-label="Flip camera">⟳ Flip</button>
+      <div class="segmented" role="group" aria-label="Video quality">
+        <button type="button" id="q-balanced" class="is-on" data-quality="balanced">Balanced</button>
+        <button type="button" id="q-high" data-quality="high">High</button>
+      </div>
+      <button type="button" class="rec-chip-btn primary" id="btn-next-step">Next →</button>
+    </div>
+
+    <div class="rec-controls-main">
+      <button type="button" class="rec-round-btn" id="btn-pause" disabled aria-label="Pause">⏸</button>
+
+      {# Single primary Record → Stop flow. Only one of these is ever visible (JS toggles
+         .hidden), so the center of the dock always has exactly one clear primary control. #}
+      <div class="rec-primary" id="rec-primary">
+        <button type="button" class="rec-round-btn record" id="btn-start" aria-label="Start recording"></button>
+        <button type="button" class="rec-round-btn stop" id="btn-stop-upload" aria-label="Stop & upload" hidden>■</button>
+      </div>
+
+      <button type="button" class="mark-this-btn" id="btn-mark" disabled>
+        <span class="mark-this-icon" aria-hidden="true">⦿</span>
+        <span class="mark-this-label">MARK</span>
+      </button>
+    </div>
+    <p class="mark-hint" id="mark-hint">Tap <strong>MARK</strong> at each finding — say “{{ identification_phrase }}” too for best results.</p>
+    <button type="button" class="rec-text-btn danger" id="btn-retry-upload" hidden>↻ Retry upload</button>
+    <button type="button" class="rec-text-btn" id="btn-download-recording" hidden>⬇ Save / Share recording</button>
+  </div>
+
+  {# Camera permission gate #}
+  <div class="perm-gate" id="perm-gate">
+    <div class="perm-gate-inner">
+      <div class="perm-icon" aria-hidden="true">🎥</div>
+      <h2>Enable camera &amp; microphone</h2>
+      <p class="perm-explain">
+        Record a short narrated walkthrough on this phone. Nothing is captured until you tap below
+        and allow access. Audio is required to transcribe your “Mark this.” notes.
+      </p>
+      <button type="button" class="btn btn-lg btn-block" id="btn-enable-av">Enable Camera &amp; Microphone</button>
+      <p class="perm-tips" id="perm-tips"></p>
+      <p class="perm-error" id="perm-error" hidden></p>
+      <div class="perm-fallback">
+        <span>Camera not working?</span>
+        <label class="perm-upload-link" for="fallback-file">Upload a video instead</label>
+      </div>
+    </div>
+  </div>
+
+  {# Countdown overlay (3·2·1) #}
+  <div id="countdown-overlay" class="countdown-overlay" aria-hidden="true">
+    <div id="countdown-num" class="countdown-num">3</div>
+    <p class="countdown-hint">Get ready — say <strong>{{ identification_phrase }}</strong> at each stop.</p>
+  </div>
+
+  {# Hidden inputs for upload payload #}
+  {% for rt in selected_report_types %}<input type="hidden" data-report-type="{{ rt }}" aria-hidden="true">{% endfor %}
+  <input type="file" id="fallback-file" accept="video/*" capture="environment" hidden>
+</div>
+
+<script>
+  window.JOBDOC_REC = {
+    identificationPhrase: {{ identification_phrase | tojson }},
+    uploadUrl: {{ url_for('upload_video') | tojson }},
+    guidancePlan: {{ guidance_plan | tojson if guidance_plan else 'null' }},
+    reportTypes: {{ selected_report_types | tojson }},
+    sessionStartUrl: {{ url_for('api_guidance_session_start') | tojson }},
+    currentStepUrl: {{ url_for('api_guidance_current_step') | tojson }},
+    nextStepUrl: {{ url_for('api_guidance_advance_step') | tojson }},
+    gotoStepUrl: {{ url_for('api_guidance_goto_step') | tojson }},
+    maxVideoSeconds: {{ max_video_seconds | default(180) | tojson }},
+    jobAddress: {{ job_address | default('') | tojson }},
+    jobNotes: {{ job_notes | default('') | tojson }},
+    voicePrompts: {{ voice_prompts | default(true) | tojson }}
+  };
+</script>
+<script src="{{ url_for('static', filename='js/field_recorder.js') }}"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function () {});
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}{{ client.name }}{% endblock %}
+{% block header_title %}{{ client.name }}{% endblock %}
+{% block header_subtitle %}{% if client.company %}{{ client.company }} · {% endif %}Client profile &amp; capture history{% endblock %}
+{% block wrap_class %} wrap--wide{% endblock %}
+
+{% block head %}
+<style>
+    .cd-top { display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap; margin-bottom:1rem; }
+    .cd-contact { display:flex; gap:1.25rem; flex-wrap:wrap; color:var(--muted); font-size:0.9rem; margin:0.25rem 0 0; }
+    .cd-contact span { white-space:nowrap; }
+    .section-label { font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin:1.5rem 0 0.75rem; }
+    .session-list { display:grid; gap:0.85rem; grid-template-columns:1fr; }
+    .session-card { border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); padding:1rem 1.1rem; }
+    .session-card .sc-head { display:flex; justify-content:space-between; align-items:flex-start; gap:0.75rem; flex-wrap:wrap; }
+    .session-card h3 { margin:0; font-size:1.02rem; }
+    .session-card .sc-meta { color:var(--muted); font-size:0.83rem; margin:0.25rem 0 0; }
+    .badge { font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; padding:0.2rem 0.55rem; border-radius:999px; white-space:nowrap; }
+    .badge--completed { background:rgba(16,185,129,0.15); color:#34d399; }
+    .badge--partial { background:rgba(245,158,11,0.15); color:#fbbf24; }
+    .badge--started { background:rgba(148,163,184,0.15); color:#94a3b8; }
+    .sc-actions { display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.85rem; }
+    .btn-sm { font-size:0.82rem; padding:0.4rem 0.8rem; }
+    .has-summary { color:#34d399; font-size:0.78rem; font-weight:600; }
+    .empty { color:var(--muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cd-top">
+    <div>
+        {% if client.email or client.phone or client.address %}
+        <p class="cd-contact">
+            {% if client.email %}<span>✉ {{ client.email }}</span>{% endif %}
+            {% if client.phone %}<span>☎ {{ client.phone }}</span>{% endif %}
+            {% if client.address %}<span>⌂ {{ client.address }}</span>{% endif %}
+        </p>
+        {% endif %}
+    </div>
+    <a class="btn btn-secondary" href="{{ url_for('clients_list') }}">← All clients</a>
+</div>
+
+<p class="section-label">Capture sessions ({{ sessions|length }})</p>
+
+{% if sessions %}
+<div class="session-list">
+    {% for s in sessions %}
+    <div class="session-card">
+        <div class="sc-head">
+            <div>
+                <h3>{{ s.report_type or 'Capture session' }}</h3>
+                <p class="sc-meta">
+                    {% if s.job_address %}{{ s.job_address }} · {% endif %}
+                    {{ s.started_at.strftime('%b %d, %Y %I:%M %p') if s.started_at else '—' }}
+                    {% if s.inspector_name %} · {{ s.inspector_name }}{% endif %}
+                </p>
+            </div>
+            <span class="badge badge--{{ s.status }}">{{ s.status }}</span>
+        </div>
+        <div class="sc-actions">
+            {% if s.job_info_summary and s.job_info_summary.summary_text %}
+            <a class="btn btn-sm" href="{{ url_for('job_info_summary_view', session_id=s.id) }}">Job Info Summary</a>
+            <span class="has-summary">✓ ready</span>
+            {% else %}
+            <a class="btn btn-secondary btn-sm" href="{{ url_for('job_info_summary_view', session_id=s.id) }}">Job Info Summary</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="empty">No capture sessions yet for this client.</p>
+<p><a class="btn" href="{{ url_for('index') }}">Start a capture</a></p>
+{% endif %}
+{% endblock %}
