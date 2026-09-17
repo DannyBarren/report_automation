@@ -558,10 +558,48 @@ def _coerce_qa(raw: Any) -> QAReviewOutput:
     )
 
 
+# Stage-abort strings that describe an *internal* Crew failure. Once a structured report has
+# actually been built from the inspector's marks + narration, these are noise — they read like
+# "your report failed" when the PDF is complete. Matched case-insensitively on a substring.
+_INTERNAL_STAGE_NOISE = (
+    "could not parse transcript analysis",
+    "could not build the structured report",
+    "did not finish — continuing with a structured draft",
+    "took too long",
+    "a structured draft will be used",
+    "could not start",
+)
+
+# The single line that replaces them.
+_FALLBACK_USED_NOTE = (
+    "Polished AI writer did not finish — this PDF uses your spoken findings and MARK timestamps."
+)
+
+
 def collect_v2_warnings(result: PipelineResultV2) -> list[str]:
-    """Human-readable pipeline notes for the UI."""
-    notes: list[str] = list(result.stage_failures or [])
-    if result.degraded:
+    """Human-readable pipeline notes for the UI.
+
+    A degraded run that still produced a real report is NOT a failed job: the deterministic
+    matcher built the PDF from the spoken findings and MARK times. So the per-stage Crew abort
+    messages collapse into one plain-language note, and only the notes the inspector can act on
+    (missed cues, unclear audio) are kept.
+    """
+    report_built = any(
+        bundle.sections for bundle in (result.final_report.reports or {}).values()
+    )
+    fallback_used = bool(result.degraded and report_built)
+
+    notes: list[str] = []
+    for note in result.stage_failures or []:
+        lowered = note.lower()
+        if report_built and any(key in lowered for key in _INTERNAL_STAGE_NOISE):
+            continue  # internal stage detail — the fallback note below covers it
+        notes.append(note)
+
+    if fallback_used:
+        if _FALLBACK_USED_NOTE not in notes:
+            notes.insert(0, _FALLBACK_USED_NOTE)
+    elif result.degraded:
         notes.append(
             "This report used backup processing for one or more steps — review flagged sections before sharing."
         )
@@ -577,7 +615,9 @@ def collect_v2_warnings(result: PipelineResultV2) -> list[str]:
             f"{ta.low_confidence_count} section(s) have unclear audio (below {LOW_CONFIDENCE_THRESHOLD:.0%} confidence) — "
             "verify on site or re-record those segments."
         )
-    if not result.qa_review.passed:
+    # A stub QA score from a stage that never ran is not a real review result — printing it
+    # next to the fallback note just reads as a second failure.
+    if not result.qa_review.passed and not fallback_used:
         notes.append(
             f"Quality review score {result.qa_review.overall_score}/100 — "
             f"{result.qa_review.revision_summary or 'see reviewer notes'}."
@@ -738,7 +778,9 @@ def generate_report(
             logger.debug("[v2][audit] skipped", exc_info=True)
         _log_frame_extraction_plan(matched, path="deterministic")
         return PipelineResultV2(
-            transcript_analysis=stub_transcript_analysis(transcript, templates),
+            transcript_analysis=stub_transcript_analysis(
+                transcript, templates, mark_events=mark_events, step_events=step_events
+            ),
             domain_analysis=stub_domain_analysis(primary_type, templates[0]),
             final_report=final_report,
             qa_review=stub_qa_review(
@@ -779,7 +821,9 @@ def generate_report(
     except CrewExecutionError as exc:
         stage_failures.append(exc.user_message)
         degraded = True
-        transcript_analysis = stub_transcript_analysis(transcript, templates)
+        transcript_analysis = stub_transcript_analysis(
+            transcript, templates, mark_events=mark_events, step_events=step_events
+        )
 
     notify(STAGE_DOMAIN, "Parsing domain findings…")
     domain_analysis = _coerce_domain(
