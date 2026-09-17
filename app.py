@@ -1811,17 +1811,18 @@ def _build_pdf_for_job(
         else "Generating PDF — extracting still frames…",
     )
     frames_dir = OUTPUT_DIR / "frames" / str(record.id)
-    # Real MARK timestamps power the whole-report image safety net: if per-section extraction
-    # yields nothing (fully degraded run), representative stills are taken at these moments so a
-    # real recording never produces an image-less PDF.
+    # Real MARK taps power the whole-report image safety net: if per-section extraction yields
+    # nothing (fully degraded run), each section recovers a still from its OWN tap. The taps are
+    # passed whole — their `section_id` is what keeps one area's photo off another's heading.
     _pdf_meta = parse_job_meta(record)
-    _mark_times = [
-        float(ev.get("t_sec", 0.0))
-        for ev in (_pdf_meta.get("mark_events") or [])
-        if isinstance(ev, dict)
-    ]
+    _mark_events = [ev for ev in (_pdf_meta.get("mark_events") or []) if isinstance(ev, dict)]
     frame_result = enrich_report_with_still_frames_resilient(
-        final_model, video_path, frames_dir, fast=fast, mark_times=_mark_times
+        final_model,
+        video_path,
+        frames_dir,
+        fast=fast,
+        mark_times=[float(ev.get("t_sec", 0.0)) for ev in _mark_events],
+        mark_events=_mark_events,
     )
     enriched = frame_result.final
     extra_warnings.extend(frame_result.warnings)

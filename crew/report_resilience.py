@@ -83,9 +83,19 @@ def build_structured_fallback_report(
 def stub_transcript_analysis(
     transcript: dict[str, Any],
     templates: list[ReportTemplate],
+    *,
+    mark_events: list[dict[str, Any]] | None = None,
+    step_events: list[dict[str, Any]] | None = None,
 ) -> TranscriptAnalysisOutput:
-    """Minimal analysis object when the analyzer agent fails."""
-    matched = build_matched_sections(transcript, templates)
+    """Minimal analysis object when the analyzer agent fails.
+
+    ``mark_events`` / ``step_events`` are forwarded so the observation list and the
+    ``missing_cues`` / low-confidence counts describe the SAME evidence the PDF was built from.
+    Recomputing without the taps overstates how much was missed.
+    """
+    matched = build_matched_sections(
+        transcript, templates, mark_events=mark_events, step_events=step_events
+    )
     from crew.models_v2 import ConfidenceBand, StructuredObservation
 
     observations: list[StructuredObservation] = []
@@ -156,7 +166,9 @@ def build_pipeline_result_fallback(
         step_events=step_events,
     )
     return PipelineResultV2(
-        transcript_analysis=stub_transcript_analysis(transcript, templates),
+        transcript_analysis=stub_transcript_analysis(
+            transcript, templates, mark_events=mark_events, step_events=step_events
+        ),
         domain_analysis=stub_domain_analysis(primary, templates[0] if templates else None),
         final_report=final,
         qa_review=stub_qa_review(

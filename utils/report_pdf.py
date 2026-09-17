@@ -108,14 +108,17 @@ def enrich_report_with_still_frames_resilient(
     *,
     fast: bool = False,
     mark_times: list[float] | None = None,
+    mark_events: list[dict[str, Any]] | None = None,
 ) -> FrameEnrichmentResult:
     """Extract stills per section; skip failures so PDF generation can continue.
 
-    ``mark_times`` are the recorder's real MARK timestamps. They are used only by the
-    whole-report safety net below: if the normal per-section pass produces ZERO images but the
-    user actually recorded (a readable video exists), we guarantee at least one representative
-    still per section — preferring real mark moments, else moments spread across the recording —
-    so a real recording never yields a completely image-less report.
+    ``mark_events`` are the recorder's MARK taps *with* their ``section_id``. They are used only
+    by the whole-report safety net below: if the normal per-section pass produces ZERO images but
+    the user actually recorded (a readable video exists), each section can recover a still from
+    its OWN tap, so a real recording never yields a completely image-less report.
+
+    ``mark_times`` (bare floats, no section identity) is kept for older callers; it cannot place
+    a still on a specific section — pass ``mark_events`` for that.
     """
     try:
         frames_dir.mkdir(parents=True, exist_ok=True)
@@ -203,22 +206,29 @@ def enrich_report_with_still_frames_resilient(
 
     # Whole-report safety net: a real recording must never yield a completely image-less PDF.
     # If NOTHING was extracted (e.g. a fully degraded run where every section fell to filler),
-    # place one representative still per section — at real MARK moments when we have them, else
-    # spread evenly across the recording — so each area still shows a photo.
+    # recover a still for each section that has a MARK tap tagged for it. Sections with no tap of
+    # their own stay photo-less — a still from elsewhere in the walkthrough is worse than none.
     if ok_count == 0:
         new_reports, recovered = _guarantee_report_images(
-            new_reports, video_path, frames_dir, max_width=max_width, mark_times=mark_times,
+            new_reports, video_path, frames_dir, max_width=max_width,
+            mark_times=mark_times, mark_events=mark_events,
         )
         if recovered:
             ok_count += recovered
-            failed = []  # sections now have a representative still
+            # Only the sections that are STILL photo-less remain "failed".
+            failed = [
+                f"{bundle.title} — {sec.section_name}"
+                for bundle in new_reports.values()
+                for sec in bundle.sections
+                if not sec.image_uri
+            ]
             warnings.append(
-                "Exact section frames were unavailable — representative stills from the "
-                "recording were used so each area shows a photo. Verify against the source video."
+                "Exact section frames were unavailable — stills were recovered at each area's "
+                "own MARK tap. Verify against the source video."
             )
             logger.warning(
-                "[frames] whole-report safety net engaged: extracted %d representative still(s) "
-                "so the report is not image-less.", recovered,
+                "[frames] whole-report safety net engaged: recovered %d still(s); %d section(s) "
+                "remain photo-less.", recovered, len(failed),
             )
         else:
             logger.warning(
@@ -240,12 +250,18 @@ def _guarantee_report_images(
     *,
     max_width: int,
     mark_times: list[float] | None,
+    mark_events: list[dict[str, Any]] | None = None,
 ) -> tuple[dict[str, ReportBundle], int]:
-    """Last-resort: give every section a representative still so the report isn't image-less.
+    """Last-resort: give a section a representative still so the report isn't image-less.
 
-    Returns ``(updated_reports, num_recovered)``. Prefers real MARK timestamps; otherwise spaces
-    stills evenly across the recording (never at 0.0s, which is usually an unhelpful opening
-    frame). Never raises.
+    Returns ``(updated_reports, num_recovered)``. A section may only take a real MARK time from
+    an event tagged for THAT section (matching ``section_id``, and ``report_type`` when the event
+    carries one). A section with no matching tap gets no still — never 0.0s, and never another
+    section's mark time, which is what the old k-th-mark → k-th-section mapping produced.
+
+    ``mark_times`` (bare floats) cannot be attributed to a section at all, so it can no longer
+    place a still; when that is all we have, stills are spaced evenly across the recording and
+    labeled representative. Never raises.
     """
     section_slots: list[tuple[str, int]] = []  # (report_type, section_index)
     for rt, bundle in reports.items():
@@ -254,28 +270,59 @@ def _guarantee_report_images(
     if not section_slots:
         return reports, 0
 
-    # Build a candidate timestamp per section.
-    real_marks = sorted({round(float(t), 2) for t in (mark_times or []) if float(t) > 0.05})
-    duration = probe_duration_seconds(video_path) or 0.0
-    n = len(section_slots)
-    candidates: list[float] = []
-    for i in range(n):
-        if i < len(real_marks):
-            candidates.append(real_marks[i])
-        elif duration > 1.0:
-            # Evenly spread across the middle of the recording (avoid the very start/end).
-            candidates.append(round(duration * (i + 1) / (n + 1), 2))
-        elif real_marks:
-            candidates.append(real_marks[i % len(real_marks)])
-        else:
-            candidates.append(1.0)  # tiny/unknown-duration clip — grab an early frame
+    # Real MARK times keyed by the section the inspector tapped them on.
+    times_by_key: dict[tuple[str, str], list[float]] = {}
+    for ev in mark_events or []:
+        if not isinstance(ev, dict):
+            continue
+        sid = str(ev.get("section_id") or "").strip()
+        if not sid:
+            continue  # untagged tap — no identity, so it may not claim any section
+        try:
+            t = float(ev.get("t_sec", ev.get("time", 0.0)))
+        except (TypeError, ValueError):
+            continue
+        if t <= 0.05:
+            continue
+        key = (str(ev.get("report_type") or "").strip(), sid)
+        times_by_key.setdefault(key, []).append(round(t, 2))
+
+    # Candidate time per section, by identity only.
+    candidate_by_slot: dict[tuple[str, int], float] = {}
+    for rt, idx in section_slots:
+        sid = str(reports[rt].sections[idx].section_id)
+        # Prefer an event tagged with this report_type; accept one that omitted report_type.
+        options = times_by_key.get((rt, sid)) or times_by_key.get(("", sid))
+        if options:
+            candidate_by_slot[(rt, idx)] = min(options)
+
+    if not times_by_key:
+        # Nothing tagged to match against: fall back to evenly spaced representative moments
+        # (never a mark time, so no section can be credited with another's tap).
+        duration = probe_duration_seconds(video_path) or 0.0
+        n = len(section_slots)
+        for i, slot in enumerate(section_slots):
+            if duration > 1.0:
+                # Evenly spread across the middle of the recording (avoid the very start/end).
+                candidate_by_slot[slot] = round(duration * (i + 1) / (n + 1), 2)
+            else:
+                candidate_by_slot[slot] = 1.0  # tiny/unknown-duration clip — grab an early frame
 
     mutable = {rt: [s.model_copy() for s in bundle.sections] for rt, bundle in reports.items()}
     recovered = 0
-    for (rt, idx), ts in zip(section_slots, candidates):
+    skipped: list[str] = []
+    for rt, idx in section_slots:
         sec = mutable[rt][idx]
         if sec.image_uri:  # already has an image — leave it
             continue
+        ts = candidate_by_slot.get((rt, idx))
+        if ts is None:
+            # No tap tagged for this section. Leave it photo-less; the PDF shows the
+            # missing-photo badge rather than a still from somewhere else in the walkthrough.
+            skipped.append(sec.section_id)
+            continue
+        # Candidates are either all tap-derived or all evenly-spaced; never mixed.
+        from_tap = bool(times_by_key)
         slug = f"{rt}__{sec.section_id}".replace("/", "-")
         out_path = frames_dir / f"{slug}__rep.jpg"
         if not _extract_frame_with_fallback(video_path, float(ts), out_path, max_width=max_width):
@@ -283,8 +330,12 @@ def _guarantee_report_images(
         rep = SectionFrame(
             timestamp_sec=float(ts),
             image_timestamp_sec=float(ts),
-            source="representative",
-            note="Representative still from the recording (exact mark unavailable).",
+            source="manual_mark" if from_tap else "representative",
+            note=(
+                "Still recovered at this section's MARK tap."
+                if from_tap
+                else "Representative still from the recording (exact mark unavailable)."
+            ),
             image_path=str(out_path),
             image_uri=out_path.as_uri(),
         )
@@ -297,9 +348,15 @@ def _guarantee_report_images(
         )
         recovered += 1
         logger.info(
-            "[frames] representative still for section '%s' at %.1fs.", sec.section_id, float(ts)
+            "[frames] safety-net still for section '%s' at %.1fs (source=%s).",
+            sec.section_id, float(ts), "manual_mark" if from_tap else "representative",
         )
 
+    if skipped:
+        logger.info(
+            "[frames] safety net left %d section(s) photo-less because no MARK tap was tagged "
+            "for them: %s", len(skipped), skipped,
+        )
     if not recovered:
         return reports, 0
     updated = {

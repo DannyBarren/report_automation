@@ -11,8 +11,12 @@ Mark-this workflow
 ------------------
     1. Real ASR emits ``segments`` with text, ``start``, ``end``. We filter
        segments whose text contains the trigger (case-insensitive).
-    2. We map the *k*-th mark to the *k*-th section in a **flattened** list of all sections
-       from selected ``ReportTemplate``s, in stable order (same as the recording UI).
+    2. Evidence is assigned to a section by **identity, not list position**: a MARK tap's own
+       ``section_id`` wins, then the section's ``step_events`` time window, then a spoken cue
+       within ``_CUE_TAP_MERGE_SEC`` of one of that section's taps. Ordinal *k*-th-mark →
+       *k*-th-section mapping is a legacy fallback used ONLY when no tap carries a
+       ``section_id`` — position-based matching swaps photos whenever the inspector marks out
+       of template order or marks twice in one area.
     3. ``timestamp_sec`` = segment start (when the cue begins). ``image_timestamp_sec`` =
        clamped midpoint of the segment (or start + 0.5s) so the still frame shows what was
        being described after the phrase.
@@ -49,6 +53,11 @@ TRIGGER_RE = re.compile(r"mark\s*this\.?", re.IGNORECASE)
 # without losing images. Near-duplicate anchors closer than this gap are still merged so we
 # don't store almost-identical stills.
 _FRAME_MIN_GAP_SEC = 1.2
+
+# A spoken cue that no step window claims may only be adopted by a section whose own MARK tap
+# is this close to it. Beyond that the cue belongs to no section we can prove, and handing it to
+# the next empty section is what previously printed one area's still under another's heading.
+_CUE_TAP_MERGE_SEC = 2.0
 
 
 def _max_frames_per_section() -> int:
@@ -229,6 +238,17 @@ def _seg_end(seg: dict[str, Any]) -> float:
         return float(seg.get("end", seg.get("t_end_sec", _seg_start(seg) + 1.0)))
     except (TypeError, ValueError):
         return _seg_start(seg) + 1.0
+
+
+def _gap_to_span(t: float, span_start: float, span_end: float) -> float:
+    """Distance from ``t`` to the nearest point of ``[span_start, span_end]`` (0.0 when inside).
+
+    A spoken cue occupies a whole segment, so a MARK tap that lands anywhere inside that segment
+    (or just past it) is describing the same finding.
+    """
+    if span_start <= t <= span_end:
+        return 0.0
+    return span_start - t if t < span_start else t - span_end
 
 
 def _normalize_step_events(step_events: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
@@ -430,14 +450,25 @@ def _build_section_frames(
         img = min(we - 0.1, ws + min(2.5, max(0.5, (we - ws) / 2.0)))
         candidates.append((ws, max(0.0, img), "step_window", ""))
 
-    candidates.sort(key=lambda c: c[0])
+    candidates.sort(key=lambda c: (c[0], 0 if c[2] == "manual_mark" else 1))
+
+    # Merge near-duplicate anchors *within this section only* (this function never sees another
+    # section's candidates). When a tap and a spoken cue describe the same moment the tap wins,
+    # because ``mark_events[].t_sec`` is the authoritative still time the inspector chose.
+    merged: list[tuple[float, float, str, str]] = []
+    for cand in candidates:
+        if merged and abs(cand[0] - merged[-1][0]) < _FRAME_MIN_GAP_SEC:
+            if cand[2] == "manual_mark" and merged[-1][2] != "manual_mark":
+                merged[-1] = cand
+            continue
+        merged.append(cand)
+    candidates = merged
+
     before, after = _frame_context_window()
     max_frames = _max_frames_per_section()
     frames: list[SectionFrame] = []
     last_anchor: float | None = None
     for anchor_t, img_t, source, note in candidates:
-        if last_anchor is not None and abs(anchor_t - last_anchor) < _FRAME_MIN_GAP_SEC:
-            continue
         # Nearest-sentence snippet (short caption) + rich context window (5s before / 10s after).
         if source == "step_window" and window:
             snippet = _narration_in_window(segments, *window)
@@ -549,32 +580,90 @@ def build_matched_sections(
         if not placed:
             leftover_cues.append(idx)
 
-    # --- Legacy fallback (no step_events / untagged marks): distribute leftover cues then taps
-    # positionally to the sections that still have no evidence, in capture order.
-    sections_without_evidence = [
-        (tpl, sec) for (tpl, sec) in flat
-        if (tpl.report_type, sec.id) not in taps_by_key
-        and (tpl.report_type, sec.id) not in cues_by_key
-        and (tpl.report_type, sec.id) not in section_windows
-    ]
-    li = 0
-    for tpl, sec in sections_without_evidence:
-        key = (tpl.report_type, sec.id)
-        if li < len(leftover_cues):
-            cues_by_key.setdefault(key, []).append(leftover_cues[li])
-            li += 1
-    ti = 0
-    still_empty = [
-        (tpl, sec) for (tpl, sec) in flat
-        if (tpl.report_type, sec.id) not in taps_by_key
-        and (tpl.report_type, sec.id) not in cues_by_key
-        and (tpl.report_type, sec.id) not in section_windows
-    ]
-    for tpl, sec in still_empty:
-        key = (tpl.report_type, sec.id)
-        if ti < len(leftover_taps):
-            taps_by_key.setdefault(key, []).append(leftover_taps[ti])
-            ti += 1
+    # --- Leftover cues: adopt one ONLY when a section's own MARK tap sits within
+    # ``_CUE_TAP_MERGE_SEC`` of it (the tap and the cue describe the same finding). A cue that
+    # cannot be tied to a tap is left unassigned rather than handed to the next empty section —
+    # dumping leftovers "to use them up" is what put a components mark's still under overview.
+    tagged_taps_exist = any(taps_by_key.values())
+    unassigned_cues: list[int] = []
+    for idx in leftover_cues:
+        cue_start, cue_end = _seg_start(segments[idx]), _seg_end(segments[idx])
+        best_key: tuple[str, str] | None = None
+        best_gap: float | None = None
+        for tkey, tlist in taps_by_key.items():
+            for tap in tlist:
+                gap = _gap_to_span(float(tap["t_sec"]), cue_start, cue_end)
+                if gap <= _CUE_TAP_MERGE_SEC and (best_gap is None or gap < best_gap):
+                    best_key, best_gap = tkey, gap
+        if best_key is not None:
+            cues_by_key.setdefault(best_key, []).append(idx)
+        else:
+            unassigned_cues.append(idx)
+
+    # --- Legacy ordinal fallback: ONLY when no tap carries a section_id at all (older recorder
+    # builds sent bare timestamps). Once any tap is tagged, section_id is authoritative and
+    # positional guessing must not run, or an out-of-order tap swaps two sections' photos.
+    if not tagged_taps_exist:
+        sections_without_evidence = [
+            (tpl, sec) for (tpl, sec) in flat
+            if (tpl.report_type, sec.id) not in taps_by_key
+            and (tpl.report_type, sec.id) not in cues_by_key
+            and (tpl.report_type, sec.id) not in section_windows
+        ]
+        li = 0
+        for tpl, sec in sections_without_evidence:
+            key = (tpl.report_type, sec.id)
+            if li < len(unassigned_cues):
+                cues_by_key.setdefault(key, []).append(unassigned_cues[li])
+                li += 1
+        unassigned_cues = unassigned_cues[li:]
+
+        # Untagged taps: fold each into the section holding a cue it sits next to, before any
+        # positional guessing, so a tap describing the same finding as a cue keeps that
+        # section's still instead of being handed to an unrelated empty section.
+        remaining_taps: list[dict[str, Any]] = []
+        for tap in leftover_taps:
+            t_sec = float(tap["t_sec"])
+            near_key: tuple[str, str] | None = None
+            near_gap: float | None = None
+            for ckey, cidxs in cues_by_key.items():
+                for cidx in cidxs:
+                    gap = _gap_to_span(t_sec, _seg_start(segments[cidx]), _seg_end(segments[cidx]))
+                    if gap <= _CUE_TAP_MERGE_SEC and (near_gap is None or gap < near_gap):
+                        near_key, near_gap = ckey, gap
+            if near_key is not None:
+                taps_by_key.setdefault(near_key, []).append(tap)
+            else:
+                remaining_taps.append(tap)
+        leftover_taps = remaining_taps
+
+        ti = 0
+        still_empty = [
+            (tpl, sec) for (tpl, sec) in flat
+            if (tpl.report_type, sec.id) not in taps_by_key
+            and (tpl.report_type, sec.id) not in cues_by_key
+            and (tpl.report_type, sec.id) not in section_windows
+        ]
+        for tpl, sec in still_empty:
+            key = (tpl.report_type, sec.id)
+            if ti < len(leftover_taps):
+                taps_by_key.setdefault(key, []).append(leftover_taps[ti])
+                ti += 1
+        leftover_taps = leftover_taps[ti:]
+
+    if unassigned_cues:
+        logger.info(
+            "[match] %d spoken cue(s) could not be tied to a tagged section (no step window, no "
+            "tap within %.1fs) — left unassigned rather than placed on an unrelated section: %s",
+            len(unassigned_cues), _CUE_TAP_MERGE_SEC,
+            [round(_seg_start(segments[i]), 1) for i in unassigned_cues],
+        )
+    if leftover_taps:
+        logger.warning(
+            "[match] %d MARK tap(s) carried no usable section_id and no step window contains "
+            "them — no still assigned (times=%s).",
+            len(leftover_taps), [round(float(t["t_sec"]), 1) for t in leftover_taps],
+        )
 
     # Diagnostics: exactly how many manual taps / spoken cues landed in each section, so a
     # "only the first mark shows up" report can be traced to tagging vs. matching immediately.
@@ -732,6 +821,28 @@ def build_matched_sections(
                     segment_text_raw="",
                     frames=frames,
                 )
+            )
+
+    # Per-section evidence audit: one line each so a swapped or missing photo can be traced to
+    # tap tagging vs. matching without a rerun. Image paths are logged later, at extraction time
+    # (utils/report_pdf.py), because the JPEGs do not exist yet here.
+    for pos, m in enumerate(matched):
+        key = (m.report_type, m.section_id)
+        sec_taps = taps_by_key.get(key, [])
+        tap_times = [round(float(t["t_sec"]), 2) for t in sec_taps]
+        extract_at = [round(float(f.image_timestamp_sec), 2) for f in m.frames]
+        logger.info(
+            "[frames] section=%s n_taps=%d tap_times=%s n_cues=%d extract_at_sec=%s source=%s",
+            m.section_id, len(sec_taps), tap_times,
+            len(cues_by_key.get(key, [])), extract_at, m.trigger_phrase,
+        )
+        # A later section that the inspector explicitly marked must never extract at 0.0s — that
+        # is the video's opening frame leaking in place of the real mark moment.
+        if pos > 0 and sec_taps and any(t <= 0.05 for t in extract_at):
+            logger.error(
+                "[frames] section=%s had %d MARK tap(s) at %s but a still is anchored at 0.0s "
+                "(extract_at_sec=%s) — the tap timestamp was lost.",
+                m.section_id, len(sec_taps), tap_times, extract_at,
             )
 
     with_narration = sum(1 for m in matched if (m.segment_text_raw or "").strip())
