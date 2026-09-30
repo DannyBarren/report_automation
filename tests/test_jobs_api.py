@@ -6,6 +6,7 @@ Runs against a throwaway SQLite file so it never touches ``instance/jobdoc.db``.
 
 from __future__ import annotations
 
+import io
 import json
 import sys
 from pathlib import Path
@@ -222,6 +223,87 @@ def test_missing_sqlite_columns_are_added_in_place(client, tmp_path) -> None:
         app_module._ensure_sqlite_schema()
         cols = {c["name"] for c in inspect(app_module.db.engine).get_columns("capture_sessions")}
         assert {"jobdoc_external_id", "source", "session_kind"} <= cols
+
+
+def test_export_zip_bundles_pdf_and_stills(client) -> None:
+    """A session with a PDF (and stills) downloads as one zip; an empty session is a 404."""
+    import zipfile
+
+    import app as app_module
+    from models import CaptureSession, db
+
+    client.post("/api/jobs", json={"jobs": [{"address": "12 Oak St", "status": "new"}]})
+    with client.application.app_context():
+        placeholder = CaptureSession.query.first()
+        capture = CaptureSession(
+            client_id=placeholder.client_id,
+            job_address="12 Oak St",
+            session_kind="capture_1",
+            status="completed",
+            pdf_filename="pack_test_report.pdf",
+        )
+        db.session.add(capture)
+        db.session.commit()
+        upload = app_module.VideoUpload(
+            stored_filename="pack_test.mp4",
+            report_types_json="[]",
+            capture_session_id=capture.id,
+        )
+        db.session.add(upload)
+        db.session.commit()
+        session_id, upload_id = capture.id, upload.id
+        empty_id = placeholder.id
+
+    out = app_module.OUTPUT_DIR
+    (out / "pack_test_report.pdf").write_bytes(b"%PDF-1.4 pack test")
+    frames_dir = out / "frames" / str(upload_id)
+    frames_dir.mkdir(parents=True, exist_ok=True)
+    (frames_dir / "overview_1.jpg").write_bytes(b"jpeg-bytes")
+    try:
+        resp = client.get(f"/jobs/session/{session_id}/export.zip")
+        assert resp.status_code == 200
+        assert resp.mimetype == "application/zip"
+        assert "12_Oak_St_capture_1.zip" in resp.headers["Content-Disposition"]
+        names = zipfile.ZipFile(io.BytesIO(resp.data)).namelist()
+        assert "pack_test_report.pdf" in names
+        assert "stills/overview_1.jpg" in names
+
+        # A placeholder job record has neither a PDF nor stills.
+        assert client.get(f"/jobs/session/{empty_id}/export.zip").status_code == 404
+
+        detail = client.get("/jobs/12 Oak St")
+        assert b"Download pack" in detail.data
+    finally:
+        (out / "pack_test_report.pdf").unlink(missing_ok=True)
+        (frames_dir / "overview_1.jpg").unlink(missing_ok=True)
+
+
+def test_roofing_template_declares_the_still_window() -> None:
+    """Every roofing section carries the template-owned still window."""
+    from utils.template_loader import load_report_template
+
+    template = load_report_template(ROOT / "reports" / "roofing_realty_inspection.json")
+    assert template.content_structure and template.content_structure.sections
+    for section in template.content_structure.sections:
+        assert section.image_placement.still_before_sec == 5.0
+        assert section.image_placement.still_after_sec == 10.0
+
+
+def test_section_still_window_beats_the_env_fallback(monkeypatch) -> None:
+    """A section's image_placement wins; sections without one fall back to the env global."""
+    from crew.structured_pipeline import _frame_context_window
+    from utils.template_schema import ContentSection, ImagePlacement
+
+    monkeypatch.setenv("JOBDOC_FRAME_CONTEXT_BEFORE_SEC", "1")
+    monkeypatch.setenv("JOBDOC_FRAME_CONTEXT_AFTER_SEC", "2")
+    assert _frame_context_window(None) == (1.0, 2.0)
+
+    section = ContentSection(
+        section_id="overview",
+        title="Overview",
+        image_placement=ImagePlacement(still_before_sec=7.5, still_after_sec=12.0),
+    )
+    assert _frame_context_window(section) == (7.5, 12.0)
 
 
 def test_test_database_is_isolated(client) -> None:

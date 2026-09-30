@@ -17,12 +17,14 @@ Design notes
 
 from __future__ import annotations
 
+import io
 import json
 import logging
 import os
 import threading
 import time
 import uuid
+import zipfile
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
@@ -31,7 +33,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 from dotenv import load_dotenv
-from flask import Flask, flash, g, jsonify, redirect, render_template, request, send_from_directory, session, url_for
+from flask import Flask, flash, g, jsonify, redirect, render_template, request, send_file, send_from_directory, session, url_for
 from sqlalchemy import inspect, text
 
 from models import (
@@ -1286,6 +1288,7 @@ def job_detail(address: str):
         reports=load_report_templates(),
         clients=Client.query.order_by(Client.name.asc()).all(),
         default_client_id=sessions[0].client_id,
+        packs={s.id: _session_has_export_pack(s) for s in sessions},
     )
 
 
@@ -1433,6 +1436,139 @@ def api_jobs():
             "statuses": list(statuses) if statuses else "all",
             "jobs": [_job_payload(g) for g in groups],
         }
+    )
+
+
+# -----------------------------------------------------------------------------
+# Export pack — one zip per capture session (PDF + the stills already on disk)
+# -----------------------------------------------------------------------------
+
+
+def _sanitize_for_filename(value: str, fallback: str) -> str:
+    """Filesystem-safe slug for a job address (letters/digits/dash/underscore only)."""
+    out = "".join(ch if (ch.isalnum() or ch in "-_") else "_" for ch in (value or "").strip())
+    while "__" in out:
+        out = out.replace("__", "_")
+    return out.strip("_")[:80] or fallback
+
+
+def _session_frame_dirs(capture: CaptureSession) -> list[Path]:
+    """Existing frame directories for a session — the same store the report pipeline writes."""
+    dirs: list[Path] = []
+    for upload in VideoUpload.query.filter_by(capture_session_id=capture.id).all():
+        candidate = OUTPUT_DIR / "frames" / str(upload.id)
+        if candidate.is_dir():
+            dirs.append(candidate)
+    return dirs
+
+
+def _section_still_window(section_id: str, report_type: str | None) -> tuple[float, float]:
+    """The template-declared still window for a section, falling back to the env global."""
+    from utils.pipeline_config import frame_context_window_seconds
+
+    template = templates_by_type().get(report_type or "")
+    content = template.content_for_section(section_id) if template else None
+    placement = getattr(content, "image_placement", None)
+    if placement is None:
+        return frame_context_window_seconds()
+    return (
+        max(0.0, float(getattr(placement, "still_before_sec", 5.0))),
+        max(0.0, float(getattr(placement, "still_after_sec", 10.0))),
+    )
+
+
+def _add_export_before_frames(capture: CaptureSession) -> int:
+    """Extract one extra "moments before" still per mark, for the export pack only.
+
+    The report itself still shows the frame at the mark. Eric asked for the lead-in shot in the
+    downloadable pack, so this pulls ``still_before_sec`` earlier — skipped when that lands less
+    than half a second from the mark (the two stills would be the same picture). Best effort:
+    a missing video or ffmpeg failure just means the pack has fewer stills.
+    """
+    from utils.video_utils import extract_frame
+
+    summary = SessionSummary.query.filter_by(capture_session_id=capture.id).first()
+    if not summary:
+        return 0
+    reports = (summary.structured_data or {}).get("reports") or {}
+    added = 0
+    for upload in VideoUpload.query.filter_by(capture_session_id=capture.id).all():
+        video_path = UPLOADS_DIR / (upload.stored_filename or "")
+        frames_dir = OUTPUT_DIR / "frames" / str(upload.id)
+        if not video_path.is_file() or not frames_dir.is_dir():
+            continue
+        for report_type, bundle in reports.items():
+            for section in (bundle or {}).get("sections") or []:
+                section_id = str(section.get("section_id") or "")
+                before, _after = _section_still_window(section_id, report_type)
+                for frame in section.get("frames") or []:
+                    try:
+                        at = float(frame.get("image_timestamp_sec") or 0.0)
+                    except (TypeError, ValueError):
+                        continue
+                    lead_in = max(0.0, at - before)
+                    if at - lead_in < 0.5:
+                        continue
+                    out = frames_dir / f"before_{section_id or 'section'}_{lead_in:.2f}.jpg"
+                    if out.is_file():
+                        continue
+                    try:
+                        if extract_frame(video_path, lead_in, out, max_width=1280):
+                            added += 1
+                    except Exception as exc:  # noqa: BLE001 — pack is best effort
+                        logger.debug("export before-frame failed at %.2fs: %s", lead_in, exc)
+    return added
+
+
+def _collect_export_members(capture: CaptureSession) -> list[tuple[str, Path]]:
+    """``(name_in_zip, path_on_disk)`` for the session PDF plus every still already produced."""
+    members: list[tuple[str, Path]] = []
+    if capture.pdf_filename:
+        pdf = OUTPUT_DIR / capture.pdf_filename
+        if pdf.is_file():
+            members.append((pdf.name, pdf))
+    for frames_dir in _session_frame_dirs(capture):
+        for path in sorted(frames_dir.rglob("*")):
+            if path.is_file():
+                members.append((f"stills/{path.relative_to(frames_dir).as_posix()}", path))
+    return members
+
+
+def _session_has_export_pack(capture: CaptureSession) -> bool:
+    """True when a Download pack button would produce something."""
+    if capture.pdf_filename and (OUTPUT_DIR / capture.pdf_filename).is_file():
+        return True
+    return any(any(p.is_file() for p in d.rglob("*")) for d in _session_frame_dirs(capture))
+
+
+@app.route("/jobs/session/<int:session_id>/export.zip")
+def job_session_export(session_id: int):
+    """Download one session's PDF + stills as a single zip (404 when there is nothing yet)."""
+    capture = CaptureSession.query.get_or_404(session_id)
+    try:
+        _add_export_before_frames(capture)
+    except Exception as exc:  # noqa: BLE001 — never fail a download over the bonus stills
+        logger.debug("export before-frame pass failed for session %s: %s", session_id, exc)
+
+    members = _collect_export_members(capture)
+    if not members:
+        return jsonify({"ok": False, "error": "No PDF or stills exist for this session yet."}), 404
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+        for name, path in members:
+            bundle.write(path, arcname=name)
+    buffer.seek(0)
+
+    address_slug = _sanitize_for_filename(capture.job_address, "no_address")
+    # "capture_1" → "1" so the name reads 12_Oak_St_capture_1.zip, not ..._capture_capture_1.zip.
+    kind = (capture.session_kind or "").replace("capture_", "") or str(capture.id)
+    download_name = f"{address_slug}_capture_{_sanitize_for_filename(kind, str(capture.id))}.zip"
+    return send_file(
+        buffer,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=download_name,
     )
 
 
