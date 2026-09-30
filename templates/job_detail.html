@@ -91,6 +91,11 @@
             <a class="btn btn-secondary btn-sm" href="{{ url_for('job_info_summary_view', session_id=s.id) }}">Job Info Summary</a>
             {% if packs.get(s.id) %}
             <a class="btn btn-sm" href="{{ url_for('job_session_export', session_id=s.id) }}">Download pack</a>
+            {% if push_enabled %}
+            <form method="post" action="{{ url_for('job_session_push', session_id=s.id) }}" style="display:inline;">
+                <button type="submit" class="btn btn-secondary btn-sm">Push pack</button>
+            </form>
+            {% endif %}
             {% endif %}
         </div>
     </div>

@@ -1267,6 +1267,8 @@ def jobs_list():
 @app.route("/jobs/<path:address>")
 def job_detail(address: str):
     """One job site: its capture sessions plus the Capture 1 / Capture 2 launchers."""
+    from utils import jobdoc_push
+
     sessions = _sessions_for_address(address)
     if not sessions:
         flash("No job found for that address.")
@@ -1289,6 +1291,7 @@ def job_detail(address: str):
         clients=Client.query.order_by(Client.name.asc()).all(),
         default_client_id=sessions[0].client_id,
         packs={s.id: _session_has_export_pack(s) for s in sessions},
+        push_enabled=jobdoc_push.push_enabled(),
     )
 
 
@@ -1541,35 +1544,75 @@ def _session_has_export_pack(capture: CaptureSession) -> bool:
     return any(any(p.is_file() for p in d.rglob("*")) for d in _session_frame_dirs(capture))
 
 
-@app.route("/jobs/session/<int:session_id>/export.zip")
-def job_session_export(session_id: int):
-    """Download one session's PDF + stills as a single zip (404 when there is nothing yet)."""
-    capture = CaptureSession.query.get_or_404(session_id)
+def _export_pack_name(capture: CaptureSession) -> str:
+    address_slug = _sanitize_for_filename(capture.job_address, "no_address")
+    # "capture_1" → "1" so the name reads 12_Oak_St_capture_1.zip, not ..._capture_capture_1.zip.
+    kind = (capture.session_kind or "").replace("capture_", "") or str(capture.id)
+    return f"{address_slug}_capture_{_sanitize_for_filename(kind, str(capture.id))}.zip"
+
+
+def _build_session_pack(capture: CaptureSession) -> tuple[io.BytesIO, str] | None:
+    """Zip a session's PDF + stills in memory. ``None`` when the session has neither."""
     try:
         _add_export_before_frames(capture)
     except Exception as exc:  # noqa: BLE001 — never fail a download over the bonus stills
-        logger.debug("export before-frame pass failed for session %s: %s", session_id, exc)
+        logger.debug("export before-frame pass failed for session %s: %s", capture.id, exc)
 
     members = _collect_export_members(capture)
     if not members:
-        return jsonify({"ok": False, "error": "No PDF or stills exist for this session yet."}), 404
-
+        return None
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
         for name, path in members:
             bundle.write(path, arcname=name)
     buffer.seek(0)
+    return buffer, _export_pack_name(capture)
 
-    address_slug = _sanitize_for_filename(capture.job_address, "no_address")
-    # "capture_1" → "1" so the name reads 12_Oak_St_capture_1.zip, not ..._capture_capture_1.zip.
-    kind = (capture.session_kind or "").replace("capture_", "") or str(capture.id)
-    download_name = f"{address_slug}_capture_{_sanitize_for_filename(kind, str(capture.id))}.zip"
+
+@app.route("/jobs/session/<int:session_id>/export.zip")
+def job_session_export(session_id: int):
+    """Download one session's PDF + stills as a single zip (404 when there is nothing yet)."""
+    capture = CaptureSession.query.get_or_404(session_id)
+    pack = _build_session_pack(capture)
+    if pack is None:
+        return jsonify({"ok": False, "error": "No PDF or stills exist for this session yet."}), 404
+    buffer, download_name = pack
     return send_file(
         buffer,
         mimetype="application/zip",
         as_attachment=True,
         download_name=download_name,
     )
+
+
+@app.route("/jobs/session/<int:session_id>/push", methods=["POST"])
+def job_session_push(session_id: int):
+    """Hand a session's export pack to ``JOBDOC_RECEIVE_URL``. No-op when that is unset."""
+    from utils import jobdoc_push
+
+    capture = CaptureSession.query.get_or_404(session_id)
+    if not jobdoc_push.push_enabled():
+        flash("Push is not configured (JOBDOC_RECEIVE_URL is unset).")
+        return redirect(url_for("job_detail", address=capture.job_address))
+
+    pack = _build_session_pack(capture)
+    if pack is None:
+        flash("Nothing to push yet — this session has no PDF or stills.")
+        return redirect(url_for("job_detail", address=capture.job_address))
+
+    buffer, download_name = pack
+    tmp_path = OUTPUT_DIR / download_name
+    try:
+        tmp_path.write_bytes(buffer.getvalue())
+        result = jobdoc_push.push_session_pack(capture.id, tmp_path)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+    if result.get("ok"):
+        flash("Pack pushed to the receiving system.")
+    else:
+        flash(f"Push did not complete: {result.get('error') or result.get('reason') or 'unknown'}")
+    return redirect(url_for("job_detail", address=capture.job_address))
 
 
 def _reusable_session_for_kind(address: str, session_kind: str) -> CaptureSession | None:
@@ -3192,6 +3235,40 @@ def _protected_recording_filenames() -> set[str]:
         return set()
 
 
+def _protected_session_artifact(path: Path) -> bool:
+    """True when ``path`` is a report PDF or still belonging to a session we must not prune.
+
+    A session that is open (``started`` / ``active``) or finished (``complete`` / ``completed``)
+    still owes Eric a downloadable export pack, so its PDF and stills outlive plain retention.
+    """
+    try:
+        with app.app_context():
+            live = (
+                CaptureSession.query
+                .filter(CaptureSession.status.in_(("complete", "completed", "started", "active")))
+                .with_entities(CaptureSession.id, CaptureSession.pdf_filename)
+                .all()
+            )
+            if not live:
+                return False
+            if path.name in {row[1] for row in live if row[1]}:
+                return True
+            # Stills live in reports_output/frames/<video_upload_id>/…, so map the folder back to
+            # its upload and then to the session that owns it.
+            parents = {p.name for p in path.parents}
+            upload_ids = {
+                str(row[0])
+                for row in VideoUpload.query
+                .filter(VideoUpload.capture_session_id.in_([r[0] for r in live]))
+                .with_entities(VideoUpload.id)
+                .all()
+            }
+            return bool(parents & upload_ids)
+    except Exception as exc:  # noqa: BLE001 — never let a lookup failure delete a deliverable
+        logger.debug("protected session artifact lookup failed for %s: %s", path, exc)
+        return True
+
+
 def _init_app() -> None:
     """
     One-time startup: create DB schema and log the runtime acceleration mode.
@@ -3212,6 +3289,7 @@ def _init_app() -> None:
     maintenance.start_reaper(
         [UPLOADS_DIR, OUTPUT_DIR],
         protected_names_provider=_protected_recording_filenames,
+        is_protected_path=_protected_session_artifact,
     )
 
     # Single, clear production-readiness banner for HF Spaces logs.
