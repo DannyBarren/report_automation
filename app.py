@@ -150,7 +150,10 @@ ensure_runtime_directories()
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-insecure-change-me")
-app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
+# ``JOBDOC_DATABASE_URI`` lets tests point at a throwaway SQLite file instead of the dev DB.
+app.config["SQLALCHEMY_DATABASE_URI"] = (
+    os.environ.get("JOBDOC_DATABASE_URI") or f"sqlite:///{db_path}"
+)
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("JOBDOC_MAX_UPLOAD_MB", "500")) * 1024 * 1024
 # Keep the login cookie around so users sign in once per browser, not once per visit.
@@ -1306,6 +1309,131 @@ def jobs_create():
     )
     flash(f"Job “{capture.job_address}” created. Start Capture 1 when you are on site.")
     return redirect(url_for("job_detail", address=capture.job_address))
+
+
+def _job_payload(group: dict[str, Any]) -> dict[str, Any]:
+    """One address group as JSON for ``GET /api/jobs``."""
+    return {
+        "address": group["display_address"],
+        "external_id": group["external_id"],
+        "status": group["latest_status"],
+        "session_count": group["session_count"],
+        "session_kinds": group["kinds"],
+        "has_pdf": group["has_pdf"],
+        "latest_started_at": (
+            group["latest_started_at"].isoformat() if group["latest_started_at"] else None
+        ),
+        "sessions": [s.to_dict() for s in group["sessions"]],
+    }
+
+
+def _upsert_job_row(row: dict[str, Any]) -> tuple[CaptureSession | None, str]:
+    """Upsert one imported job row. Returns ``(session, "created"|"updated"|"skipped")``."""
+    address = str(row.get("address") or "").strip()
+    if not address:
+        return None, "skipped"
+    external_id = str(row.get("external_id") or "").strip()[:120] or None
+    inspection_date = str(row.get("inspection_date") or "").strip()[:32] or None
+    status = str(row.get("status") or "new").strip()[:40] or "new"
+
+    existing: CaptureSession | None = None
+    if external_id:
+        # An id from the sending system is the strongest key: prefer the job's placeholder row,
+        # but fall back to any session carrying that id so the id is never duplicated.
+        candidates = (
+            CaptureSession.query.filter_by(jobdoc_external_id=external_id)
+            .order_by(CaptureSession.id.asc())
+            .all()
+        )
+        existing = next((c for c in candidates if c.session_kind is None), None) or (
+            candidates[0] if candidates else None
+        )
+    if existing is None:
+        key = normalize_job_address(address)
+        existing = next(
+            (
+                s
+                for s in CaptureSession.query.filter(CaptureSession.session_kind.is_(None))
+                .order_by(CaptureSession.id.asc())
+                .all()
+                if normalize_job_address(s.job_address) == key
+            ),
+            None,
+        )
+
+    if existing is not None:
+        existing.job_address = address[:500]
+        if external_id:
+            existing.jobdoc_external_id = external_id
+        if inspection_date:
+            existing.inspection_date = inspection_date
+        # Only a placeholder's status is import-owned. A real capture's status belongs to the
+        # recorder/pipeline, so an import must never knock a live visit back to "new".
+        if existing.session_kind is None:
+            existing.status = status
+        db.session.add(existing)
+        db.session.commit()
+        return existing, "updated"
+
+    capture = _create_placeholder_session(
+        address=address,
+        external_id=external_id,
+        inspection_date=inspection_date,
+        status=status,
+        source="json_import",
+    )
+    return capture, "created"
+
+
+@app.route("/api/jobs", methods=["GET", "POST"])
+def api_jobs():
+    """Import a JSON list of jobs (POST) or read jobs grouped by address (GET).
+
+    Behind the same login gate as ``/api/clients`` — this is an internal integration surface,
+    not a public endpoint.
+    """
+    if request.method == "POST":
+        body = request.get_json(silent=True) or {}
+        if isinstance(body, list):
+            rows = body
+        else:
+            rows = body.get("jobs") if isinstance(body, dict) else None
+        if not isinstance(rows, list):
+            return jsonify({"ok": False, "error": "expected a 'jobs' list"}), 400
+
+        counts = {"created": 0, "updated": 0, "skipped": 0}
+        saved: list[dict[str, Any]] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                counts["skipped"] += 1
+                continue
+            capture, outcome = _upsert_job_row(row)
+            counts[outcome] += 1
+            if capture is not None:
+                saved.append(capture.to_dict())
+        if not saved:
+            return jsonify({"ok": False, "error": "no job row had an address", **counts}), 400
+        return jsonify({"ok": True, **counts, "jobs": saved})
+
+    statuses = _expand_status_filter(request.args.get("status"))
+    try:
+        days = int(request.args.get("days") or 7)
+    except ValueError:
+        days = 7
+    days = max(1, min(14, days))
+    # ``started_at`` is a naive DateTime column holding UTC, so compare against naive UTC.
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
+
+    query = _sessions_for_job_query(statuses).filter(CaptureSession.started_at >= cutoff)
+    groups = _group_sessions_by_address(query.all())
+    return jsonify(
+        {
+            "ok": True,
+            "days": days,
+            "statuses": list(statuses) if statuses else "all",
+            "jobs": [_job_payload(g) for g in groups],
+        }
+    )
 
 
 def _reusable_session_for_kind(address: str, session_kind: str) -> CaptureSession | None:

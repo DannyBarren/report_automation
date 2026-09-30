@@ -1,0 +1,27 @@
+{
+  "jobs": [
+    {
+      "address": "12 Oak St",
+      "status": "new",
+      "external_id": null,
+      "inspection_date": "2026-09-30"
+    },
+    {
+      "address": "88 Beech Ave, Unit 4",
+      "status": "new",
+      "external_id": "JD-2001",
+      "inspection_date": "2026-10-01"
+    },
+    {
+      "address": "  401   Maple Road  ",
+      "status": "active",
+      "external_id": "JD-2002",
+      "inspection_date": null
+    },
+    {
+      "status": "new",
+      "external_id": "JD-NO-ADDRESS",
+      "inspection_date": "2026-10-02"
+    }
+  ]
+}
