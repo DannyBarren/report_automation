@@ -1,0 +1,54 @@
+{
+  "report_type": "foreign_translator_sample",
+  "title": "Foreign Tool Roof Condition Report",
+  "business_name": "Acme Exteriors",
+  "pdf_styling": {
+    "page_footer": "{business_name} · Confidential · Page {page} of {total_pages}",
+    "page_header": "{report_title} — page {page_number}",
+    "severity_bands": {
+      "informational": "Informational",
+      "minor": "Minor",
+      "moderate": "Moderate concern",
+      "major": "Major",
+      "safety_critical": "Critical",
+      "low": "low",
+      "medium": "MEDIUM",
+      "high": "High priority",
+      "already_a_token": "yellow"
+    }
+  },
+  "guidance": {
+    "intro_script": "Walk the roof and narrate what you see.",
+    "sections": [
+      {
+        "section_id": "overview",
+        "title": "Roof overview",
+        "voice_prompt": "Stand back and show the whole roof.",
+        "success_criteria": "Whole roof visible from at least two corners."
+      },
+      {
+        "section_id": "penetrations",
+        "title": "Penetrations",
+        "voice_prompt": "Stop at every vent, curb, and skylight.",
+        "success_criteria": [
+          "Every penetration is marked.",
+          "Flashing condition is described."
+        ]
+      }
+    ]
+  },
+  "content_structure": {
+    "sections": [
+      {
+        "section_id": "overview",
+        "title": "Roof overview",
+        "fields": ["condition_summary", "severity"]
+      },
+      {
+        "section_id": "penetrations",
+        "title": "Penetrations",
+        "fields": ["specific_findings", "severity"]
+      }
+    ]
+  }
+}

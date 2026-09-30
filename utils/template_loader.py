@@ -7,13 +7,24 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from utils.jobdoc_adapter import adapt_template_dict
 from utils.template_schema import ReportTemplate
 
 REPORTS_DIR = Path(__file__).resolve().parent.parent / "reports"
 
 
 def load_report_template(path: Path) -> ReportTemplate:
+    """Parse, translate foreign idioms, then validate.
+
+    The adapter runs BEFORE validation so a template authored against another JobDoc tool's
+    vocabulary still loads. It is best-effort: if adapting fails we validate the raw JSON, and
+    a validation failure is still handled by the caller's skip+log.
+    """
     data = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        data = adapt_template_dict(data)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[jobdoc] Template adapter skipped for {path.name}: {exc}")
     return ReportTemplate.model_validate(data)
 
 

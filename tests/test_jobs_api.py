@@ -306,6 +306,112 @@ def test_section_still_window_beats_the_env_fallback(monkeypatch) -> None:
     assert _frame_context_window(section) == (7.5, 12.0)
 
 
+def test_reaper_spares_session_pdfs_and_stills(client, tmp_path) -> None:
+    """Retention must not delete the PDF/stills a finished session still owes as a pack."""
+    import os
+    import time
+
+    import app as app_module
+    from models import CaptureSession, db
+    from utils import maintenance
+
+    with client.application.app_context():
+        capture = CaptureSession(
+            client_id=_jobdoc_client_id(app_module),
+            job_address="12 Oak St",
+            session_kind="capture_1",
+            status="completed",
+            pdf_filename="reaper_keep.pdf",
+        )
+        db.session.add(capture)
+        db.session.commit()
+        upload = app_module.VideoUpload(
+            stored_filename="reaper.mp4", report_types_json="[]", capture_session_id=capture.id
+        )
+        db.session.add(upload)
+        db.session.commit()
+        upload_id = upload.id
+
+    out = app_module.OUTPUT_DIR
+    keep_pdf = out / "reaper_keep.pdf"
+    keep_still = out / "frames" / str(upload_id) / "overview_1.jpg"
+    drop = out / "reaper_orphan.pdf"
+    keep_still.parent.mkdir(parents=True, exist_ok=True)
+    for path in (keep_pdf, keep_still, drop):
+        path.write_bytes(b"x")
+        old = time.time() - 72 * 3600
+        os.utime(path, (old, old))
+
+    try:
+        assert app_module._protected_session_artifact(keep_pdf) is True
+        assert app_module._protected_session_artifact(keep_still) is True
+        assert app_module._protected_session_artifact(drop) is False
+
+        maintenance.reap_once(
+            [out],
+            max_age_hours=1,
+            is_protected_path=app_module._protected_session_artifact,
+        )
+        assert keep_pdf.is_file()
+        assert keep_still.is_file()
+        assert not drop.exists()
+    finally:
+        for path in (keep_pdf, keep_still, drop):
+            path.unlink(missing_ok=True)
+
+
+def _jobdoc_client_id(app_module) -> int:
+    from models import Client
+
+    existing = Client.query.first()
+    if existing:
+        return existing.id
+    return app_module._jobdoc_placeholder_client().id
+
+
+def test_push_is_skipped_without_a_receive_url(client, tmp_path, monkeypatch) -> None:
+    """The push stub is opt-in: no JOBDOC_RECEIVE_URL means a logged no-op, never an exception."""
+    from utils import jobdoc_push
+
+    monkeypatch.delenv("JOBDOC_RECEIVE_URL", raising=False)
+    assert jobdoc_push.push_enabled() is False
+
+    result = jobdoc_push.push_session_pack(1, tmp_path / "missing.zip")
+    assert result == {"ok": False, "skipped": True, "reason": "JOBDOC_RECEIVE_URL not set"}
+
+
+def test_push_never_raises_when_the_receiver_is_unreachable(client, tmp_path, monkeypatch) -> None:
+    from models import CaptureSession, db
+    from utils import jobdoc_push
+
+    monkeypatch.setenv("JOBDOC_RECEIVE_URL", "http://127.0.0.1:1/receive")
+    pack = tmp_path / "pack.zip"
+    pack.write_bytes(b"PK\x05\x06" + b"\x00" * 18)
+
+    with client.application.app_context():
+        import app as app_module
+
+        capture = CaptureSession(
+            client_id=_jobdoc_client_id(app_module),
+            job_address="12 Oak St",
+            session_kind="capture_1",
+            status="completed",
+        )
+        db.session.add(capture)
+        db.session.commit()
+        result = jobdoc_push.push_session_pack(capture.id, pack)
+
+    assert result["ok"] is False
+    assert result["skipped"] is False
+    assert result["error"]
+
+
+def test_push_button_is_hidden_without_a_receive_url(client, monkeypatch) -> None:
+    monkeypatch.delenv("JOBDOC_RECEIVE_URL", raising=False)
+    client.post("/api/jobs", json={"jobs": [{"address": "12 Oak St", "status": "new"}]})
+    assert b"Push pack" not in client.get("/jobs/12 Oak St").data
+
+
 def test_test_database_is_isolated(client) -> None:
     """Guard: the fixture must not have pointed the app at the real instance DB."""
     import app as app_module
