@@ -89,6 +89,9 @@
         </div>
         <div class="sc-actions">
             <a class="btn btn-secondary btn-sm" href="{{ url_for('job_info_summary_view', session_id=s.id) }}">Job Info Summary</a>
+            {% if packs.get(s.id) %}
+            <a class="btn btn-sm" href="{{ url_for('job_session_export', session_id=s.id) }}">Download pack</a>
+            {% endif %}
         </div>
     </div>
     {% endfor %}

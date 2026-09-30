@@ -242,7 +242,9 @@
           "required": true,
           "position": "after_summary",
           "caption_style": "timestamp_narration",
-          "max_images": 15
+          "max_images": 15,
+          "still_before_sec": 5.0,
+          "still_after_sec": 10.0
         },
         "layout_hints": {
           "page_break_before": true,
@@ -296,7 +298,9 @@
           "required": true,
           "position": "after_summary",
           "caption_style": "timestamp_narration",
-          "max_images": 20
+          "max_images": 20,
+          "still_before_sec": 5.0,
+          "still_after_sec": 10.0
         },
         "layout_hints": {
           "page_break_before": true,
@@ -350,7 +354,9 @@
           "required": true,
           "position": "after_summary",
           "caption_style": "timestamp_narration",
-          "max_images": 20
+          "max_images": 20,
+          "still_before_sec": 5.0,
+          "still_after_sec": 10.0
         },
         "layout_hints": {
           "page_break_before": true,
@@ -404,7 +410,9 @@
           "required": false,
           "position": "appendix_only",
           "caption_style": "timestamp_only",
-          "max_images": 20
+          "max_images": 20,
+          "still_before_sec": 5.0,
+          "still_after_sec": 10.0
         },
         "layout_hints": {
           "page_break_before": true,

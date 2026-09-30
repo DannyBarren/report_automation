@@ -66,10 +66,23 @@ def _max_frames_per_section() -> int:
     return max_frames_per_section()
 
 
-def _frame_context_window() -> tuple[float, float]:
+def _frame_context_window(content_section: Any | None = None) -> tuple[float, float]:
+    """Narration window ``(before, after)`` to capture around a mark.
+
+    The section's own ``image_placement`` wins when it declares the window, so a template can
+    give one area more lead-in than another. The env-backed global is the fallback only.
+    """
     from utils.pipeline_config import frame_context_window_seconds
 
-    return frame_context_window_seconds()
+    placement = getattr(content_section, "image_placement", None)
+    before = getattr(placement, "still_before_sec", None)
+    after = getattr(placement, "still_after_sec", None)
+    if before is None or after is None:
+        return frame_context_window_seconds()
+    try:
+        return max(0.0, float(before)), max(0.0, float(after))
+    except (TypeError, ValueError):
+        return frame_context_window_seconds()
 
 
 def flatten_sections_in_order(templates: list[ReportTemplate]) -> list[tuple[ReportTemplate, ReportSection]]:
@@ -431,6 +444,7 @@ def _build_section_frames(
     taps: list[dict[str, Any]],
     cues: list[int],
     window: tuple[float, float] | None,
+    content_section: Any | None = None,
 ) -> list[SectionFrame]:
     """Collect **every** evidence still for one section (not just the first).
 
@@ -464,7 +478,7 @@ def _build_section_frames(
         merged.append(cand)
     candidates = merged
 
-    before, after = _frame_context_window()
+    before, after = _frame_context_window(content_section)
     max_frames = _max_frames_per_section()
     frames: list[SectionFrame] = []
     last_anchor: float | None = None
@@ -696,7 +710,9 @@ def build_matched_sections(
         cues = sorted(cues_by_key.get(key, []), key=lambda i: _seg_start(segments[i]))
 
         # Collect ALL evidence stills for this section (one per tap / cue), not just the first.
-        frames = _build_section_frames(segments, taps=taps, cues=cues, window=window)
+        frames = _build_section_frames(
+            segments, taps=taps, cues=cues, window=window, content_section=content_sec
+        )
 
         if taps:
             # 1) Manual mark(s) — the strongest signal of user intent. Anchor at the first tap.
