@@ -28,6 +28,7 @@
             {% if is_authed or not auth_enabled %}
             <nav class="site-brand__nav" aria-label="Account">
                 <a href="{{ url_for('clients_list') }}" class="site-brand__navlink">Clients</a>
+                <a href="{{ url_for('jobs_list') }}" class="site-brand__navlink">Jobs</a>
                 <a href="{{ url_for('manage_keys') }}" class="site-brand__navlink">API keys</a>
                 {% if auth_enabled and is_authed %}
                 <a href="{{ url_for('logout') }}" class="site-brand__logout" aria-label="Sign out">Sign out</a>

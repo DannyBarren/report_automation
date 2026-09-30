@@ -276,6 +276,19 @@ class ImagePlacement(BaseModel):
         "timestamp_narration"
     )
     max_images: int = Field(default=12, ge=0)
+    # Narration window captured around each MARK for this section's photos. The template owns
+    # these so one section can carry more lead-in than another; ``frame_context_window_seconds``
+    # is only the fallback when a section does not declare them.
+    still_before_sec: float = Field(
+        default=5.0,
+        ge=0.0,
+        description="Seconds of narration before a mark to attach to that section's stills.",
+    )
+    still_after_sec: float = Field(
+        default=10.0,
+        ge=0.0,
+        description="Seconds of narration after a mark to attach to that section's stills.",
+    )
 
 
 class LayoutHints(BaseModel):

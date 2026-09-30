@@ -75,6 +75,8 @@ def max_frames_per_section() -> int:
 def frame_context_window_seconds() -> tuple[float, float]:
     """Narration context captured around each mark: ``(before, after)`` seconds.
 
+    FALLBACK ONLY. A section's ``image_placement.still_before_sec`` / ``still_after_sec`` is
+    authoritative when the template declares it; this global applies to sections that do not.
     Defaults to 5s before / 10s after so every photo carries the surrounding description, not
     just the single nearest sentence. Override with ``JOBDOC_FRAME_CONTEXT_BEFORE_SEC`` /
     ``JOBDOC_FRAME_CONTEXT_AFTER_SEC``.

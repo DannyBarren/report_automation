@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}{{ display_address }}{% endblock %}
+{% block header_title %}{{ display_address }}{% endblock %}
+{% block header_subtitle %}{% if external_id %}Job {{ external_id }} · {% endif %}Capture visits for this address{% endblock %}
+{% block wrap_class %} wrap--wide{% endblock %}
+
+{% block head %}
+<style>
+    .jd-top { display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap; margin-bottom:1rem; }
+    .section-label { font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin:1.5rem 0 0.75rem; }
+    .field-grid { display:grid; gap:0.75rem; grid-template-columns:1fr; }
+    @media (min-width: 620px) { .field-grid.cols-2 { grid-template-columns:1fr 1fr; } }
+    .session-list { display:grid; gap:0.85rem; grid-template-columns:1fr; }
+    .session-card { border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); padding:1rem 1.1rem; }
+    .session-card .sc-head { display:flex; justify-content:space-between; align-items:flex-start; gap:0.75rem; flex-wrap:wrap; }
+    .session-card h3 { margin:0; font-size:1.02rem; }
+    .session-card .sc-meta { color:var(--muted); font-size:0.83rem; margin:0.25rem 0 0; }
+    .badge { font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; padding:0.2rem 0.55rem; border-radius:999px; white-space:nowrap; }
+    .badge--completed, .badge--complete { background:rgba(16,185,129,0.15); color:#34d399; }
+    .badge--partial { background:rgba(245,158,11,0.15); color:#fbbf24; }
+    .badge--new { background:rgba(37,99,235,0.18); color:#93c5fd; }
+    .badge--started, .badge--recording, .badge--active { background:rgba(148,163,184,0.15); color:#94a3b8; }
+    .sc-actions { display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.85rem; align-items:center; }
+    .btn-sm { font-size:0.82rem; padding:0.4rem 0.8rem; }
+    .capture-buttons { display:flex; gap:0.75rem; flex-wrap:wrap; margin-top:1rem; }
+    .capture-note { color:var(--muted-dim); font-size:0.78rem; margin:0.6rem 0 0; }
+    .empty { color:var(--muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="jd-top">
+    <div></div>
+    <a class="btn btn-secondary" href="{{ url_for('jobs_list') }}">← All jobs</a>
+</div>
+
+<p class="section-label">Run a capture</p>
+<form method="post" action="{{ url_for('start_session') }}" class="card">
+    <input type="hidden" name="job_address" value="{{ display_address if display_address != 'No address' else '' }}">
+    <input type="hidden" name="voice_prompts" value="on">
+    <div class="field-grid cols-2">
+        <label class="field" style="margin:0;">
+            <span class="field-label">Report template <span style="color:var(--accent);">*</span></span>
+            <select class="input" name="report_types" required>
+                {% for r in reports %}
+                <option value="{{ r.report_type }}"{% if r.featured and loop.first %} selected{% endif %}>{{ r.title }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="field" style="margin:0;">
+            <span class="field-label">Client</span>
+            <select class="input" name="client_id">
+                {% for c in clients %}
+                <option value="{{ c.id }}"{% if c.id == default_client_id %} selected{% endif %}>{{ c.display_label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+    </div>
+    <div class="capture-buttons">
+        <button type="submit" class="btn" name="session_kind" value="capture_1">
+            {{ 'Resume Capture 1' if kinds_open.get('capture_1') else 'Capture 1' }}
+        </button>
+        <button type="submit" class="btn" name="session_kind" value="capture_2">
+            {{ 'Resume Capture 2' if kinds_open.get('capture_2') else 'Capture 2' }}
+        </button>
+    </div>
+    <p class="capture-note">Each button opens the recorder for this address. An open capture of the same kind is resumed rather than duplicated.</p>
+</form>
+
+<p class="section-label">Sessions at this address ({{ sessions|length }})</p>
+
+{% if sessions %}
+<div class="session-list">
+    {% for s in sessions %}
+    <div class="session-card">
+        <div class="sc-head">
+            <div>
+                <h3>
+                    {% if s.session_kind %}{{ s.session_kind|replace('capture_', 'Capture ') }}{% else %}Job record{% endif %}
+                    {% if s.report_type %} — {{ s.report_type }}{% endif %}
+                </h3>
+                <p class="sc-meta">
+                    {{ s.started_at.strftime('%b %d, %Y %I:%M %p') if s.started_at else '—' }}
+                    {% if s.inspector_name %} · {{ s.inspector_name }}{% endif %}
+                    {% if s.source != 'manual' %} · via {{ s.source }}{% endif %}
+                </p>
+            </div>
+            <span class="badge badge--{{ s.status }}">{{ s.status }}</span>
+        </div>
+        <div class="sc-actions">
+            <a class="btn btn-secondary btn-sm" href="{{ url_for('job_info_summary_view', session_id=s.id) }}">Job Info Summary</a>
+            {% if packs.get(s.id) %}
+            <a class="btn btn-sm" href="{{ url_for('job_session_export', session_id=s.id) }}">Download pack</a>
+            {% if push_enabled %}
+            <form method="post" action="{{ url_for('job_session_push', session_id=s.id) }}" style="display:inline;">
+                <button type="submit" class="btn btn-secondary btn-sm">Push pack</button>
+            </form>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="empty">No sessions yet at this address.</p>
+{% endif %}
+{% endblock %}

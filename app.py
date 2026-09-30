@@ -17,12 +17,14 @@ Design notes
 
 from __future__ import annotations
 
+import io
 import json
 import logging
 import os
 import threading
 import time
 import uuid
+import zipfile
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
@@ -31,10 +33,19 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 from dotenv import load_dotenv
-from flask import Flask, flash, g, jsonify, redirect, render_template, request, send_from_directory, session, url_for
+from flask import Flask, flash, g, jsonify, redirect, render_template, request, send_file, send_from_directory, session, url_for
 from sqlalchemy import inspect, text
 
-from models import CaptureSession, Client, JobInfoSummary, MiscData, SessionSummary, VideoUpload, db
+from models import (
+    CaptureSession,
+    Client,
+    JobInfoSummary,
+    MiscData,
+    SessionSummary,
+    VideoUpload,
+    db,
+    normalize_job_address,
+)
 from utils.misc_section import MISC_REPORT_TYPE, misc_report_template
 
 from utils.job_progress import default_pipeline_steps, mark_all_completed, sync_steps_from_progress
@@ -141,7 +152,10 @@ ensure_runtime_directories()
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-insecure-change-me")
-app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
+# ``JOBDOC_DATABASE_URI`` lets tests point at a throwaway SQLite file instead of the dev DB.
+app.config["SQLALCHEMY_DATABASE_URI"] = (
+    os.environ.get("JOBDOC_DATABASE_URI") or f"sqlite:///{db_path}"
+)
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("JOBDOC_MAX_UPLOAD_MB", "500")) * 1024 * 1024
 # Keep the login cookie around so users sign in once per browser, not once per visit.
@@ -370,6 +384,7 @@ def _ensure_sqlite_schema() -> None:
     try:
         insp = inspect(db.engine)
         cols = {c["name"] for c in insp.get_columns("video_uploads")}
+        session_cols = {c["name"] for c in insp.get_columns("capture_sessions")}
     except Exception:  # noqa: BLE001
         return
     pending: list[str] = []
@@ -377,6 +392,15 @@ def _ensure_sqlite_schema() -> None:
         pending.append("ALTER TABLE video_uploads ADD COLUMN job_meta TEXT")
     if "capture_session_id" not in cols:
         pending.append("ALTER TABLE video_uploads ADD COLUMN capture_session_id INTEGER")
+    # JobDoc shell columns (address-first jobs). Same in-place ALTER pattern as above.
+    if "jobdoc_external_id" not in session_cols:
+        pending.append("ALTER TABLE capture_sessions ADD COLUMN jobdoc_external_id VARCHAR(120)")
+    if "source" not in session_cols:
+        pending.append(
+            "ALTER TABLE capture_sessions ADD COLUMN source VARCHAR(40) NOT NULL DEFAULT 'manual'"
+        )
+    if "session_kind" not in session_cols:
+        pending.append("ALTER TABLE capture_sessions ADD COLUMN session_kind VARCHAR(40)")
     for stmt in pending:
         try:
             with db.engine.begin() as conn:
@@ -1094,6 +1118,513 @@ def api_clients():
     return jsonify({"ok": True, "clients": [c.to_dict() for c in clients]})
 
 
+# -----------------------------------------------------------------------------
+# Jobs by address (JobDoc shell) — a "job" is the set of CaptureSessions that share a
+# normalized ``job_address``. There is deliberately no parent Job table: the placeholder
+# session (``session_kind`` NULL) is the job record, and each visit is its own session.
+# -----------------------------------------------------------------------------
+
+# Statuses that mean "this job still needs work". ``started`` / ``recording`` are the values
+# the recorder writes, and ``partial`` is what the pipeline writes when a run finished without
+# a PDF — all of them are open work, so the default /jobs view shows them.
+JOB_OPEN_STATUSES = ("new", "active", "started", "recording", "partial")
+JOB_COMPLETE_STATUSES = ("complete", "completed")
+# The client every placeholder job is parented to, because ``CaptureSession.client_id`` is
+# NOT NULL and an address-first job has no client yet.
+JOBDOC_PLACEHOLDER_CLIENT = "JobDoc / Unassigned"
+SESSION_KINDS = ("capture_1", "capture_2")
+
+
+def _expand_status_filter(raw: str | None) -> tuple[str, ...] | None:
+    """Turn a ``?status=`` value into the statuses to keep. ``None`` means "no filter".
+
+    ``all`` (or ``*``) disables filtering. ``active`` expands to every value the recorder and
+    pipeline may write for an in-progress visit, so callers never have to know them.
+    """
+    raw = (raw or "").strip().lower()
+    if not raw:
+        return JOB_OPEN_STATUSES
+    if raw in ("all", "*"):
+        return None
+    wanted: list[str] = []
+    for token in raw.split(","):
+        token = token.strip()
+        if not token:
+            continue
+        if token == "active":
+            wanted.extend(("active", "started", "recording"))
+        elif token in ("complete", "completed"):
+            wanted.extend(JOB_COMPLETE_STATUSES)
+        else:
+            wanted.append(token)
+    return tuple(dict.fromkeys(wanted)) or JOB_OPEN_STATUSES
+
+
+def _jobdoc_placeholder_client() -> Client:
+    """Reuse (or create once) the catch-all client that address-first jobs are parented to."""
+    client = Client.query.filter_by(name=JOBDOC_PLACEHOLDER_CLIENT).first()
+    if client:
+        return client
+    client = Client(
+        name=JOBDOC_PLACEHOLDER_CLIENT,
+        notes="Auto-created so address-first JobDoc jobs satisfy CaptureSession.client_id.",
+    )
+    db.session.add(client)
+    db.session.commit()
+    return client
+
+
+def _group_sessions_by_address(sessions: list[CaptureSession]) -> list[dict[str, Any]]:
+    """Group sessions into job cards keyed by normalized address, newest session first.
+
+    Grouping happens in Python (not SQL) because the match key collapses whitespace and
+    casefolds, which no portable SQL expression gives us.
+    """
+    groups: dict[str, dict[str, Any]] = {}
+    for s in sessions:
+        key = normalize_job_address(s.job_address)
+        group = groups.get(key)
+        if group is None:
+            group = groups[key] = {
+                "address_key": key,
+                # First (newest) row wins the display spelling.
+                "address": (s.job_address or "").strip(),
+                "display_address": (s.job_address or "").strip() or "No address",
+                "external_id": None,
+                "sessions": [],
+            }
+        group["sessions"].append(s)
+        if not group["external_id"] and s.jobdoc_external_id:
+            group["external_id"] = s.jobdoc_external_id
+    out = list(groups.values())
+    for group in out:
+        rows = group["sessions"]
+        latest = rows[0]
+        group["session_count"] = len(rows)
+        group["latest_status"] = latest.status
+        group["latest_started_at"] = latest.started_at
+        group["kinds"] = sorted({r.session_kind for r in rows if r.session_kind})
+        group["has_pdf"] = any(r.pdf_filename for r in rows)
+    out.sort(key=lambda g: (g["latest_started_at"] is None, g["latest_started_at"]), reverse=True)
+    return out
+
+
+def _sessions_for_job_query(statuses: tuple[str, ...] | None):
+    query = CaptureSession.query
+    if statuses:
+        query = query.filter(CaptureSession.status.in_(statuses))
+    return query.order_by(CaptureSession.started_at.desc(), CaptureSession.id.desc())
+
+
+def _sessions_for_address(address: str) -> list[CaptureSession]:
+    """Every session at one address, newest first, matched on the normalized address."""
+    key = normalize_job_address(address)
+    rows = (
+        CaptureSession.query
+        .order_by(CaptureSession.started_at.desc(), CaptureSession.id.desc())
+        .all()
+    )
+    return [s for s in rows if normalize_job_address(s.job_address) == key]
+
+
+def _create_placeholder_session(
+    *,
+    address: str,
+    external_id: str | None = None,
+    inspection_date: str | None = None,
+    status: str = "new",
+    source: str = "manual",
+) -> CaptureSession:
+    """Create the job-record session for an address (no recorder, no report type)."""
+    capture = CaptureSession(
+        client_id=_jobdoc_placeholder_client().id,
+        job_address=(address or "").strip()[:500],
+        inspection_date=(inspection_date or "").strip()[:32] or None,
+        status=(status or "new").strip()[:40] or "new",
+        jobdoc_external_id=(external_id or "").strip()[:120] or None,
+        source=source,
+        session_kind=None,
+    )
+    db.session.add(capture)
+    db.session.commit()
+    return capture
+
+
+@app.route("/jobs")
+def jobs_list():
+    """Job board: capture sessions grouped by job address (``?status=all`` includes complete)."""
+    status_arg = request.args.get("status")
+    statuses = _expand_status_filter(status_arg)
+    jobs = _group_sessions_by_address(_sessions_for_job_query(statuses).all())
+    return render_template(
+        "jobs.html",
+        jobs=jobs,
+        status_filter=(status_arg or "").strip().lower(),
+        showing_all=statuses is None,
+    )
+
+
+@app.route("/jobs/<path:address>")
+def job_detail(address: str):
+    """One job site: its capture sessions plus the Capture 1 / Capture 2 launchers."""
+    from utils import jobdoc_push
+
+    sessions = _sessions_for_address(address)
+    if not sessions:
+        flash("No job found for that address.")
+        return redirect(url_for("jobs_list"))
+    display_address = next((s.job_address for s in sessions if s.job_address), "") or "No address"
+    external_id = next((s.jobdoc_external_id for s in sessions if s.jobdoc_external_id), None)
+    kinds_open = {
+        s.session_kind: s
+        for s in reversed(sessions)
+        if s.session_kind and s.status not in JOB_COMPLETE_STATUSES
+    }
+    return render_template(
+        "job_detail.html",
+        address=address,
+        display_address=display_address,
+        external_id=external_id,
+        sessions=sessions,
+        kinds_open=kinds_open,
+        reports=load_report_templates(),
+        clients=Client.query.order_by(Client.name.asc()).all(),
+        default_client_id=sessions[0].client_id,
+        packs={s.id: _session_has_export_pack(s) for s in sessions},
+        push_enabled=jobdoc_push.push_enabled(),
+    )
+
+
+@app.route("/jobs/create", methods=["POST"])
+def jobs_create():
+    """Create a placeholder job from the /jobs form. Never starts the recorder."""
+    address = (request.form.get("address") or "").strip()
+    if not address:
+        flash("A job address is required.")
+        return redirect(url_for("jobs_list"))
+    existing = _sessions_for_address(address)
+    if existing:
+        flash(f"“{address}” already exists — opened it instead of creating a duplicate.")
+        return redirect(url_for("job_detail", address=address))
+    capture = _create_placeholder_session(
+        address=address,
+        external_id=request.form.get("external_id"),
+        inspection_date=request.form.get("inspection_date"),
+        status=request.form.get("status") or "new",
+        source="manual",
+    )
+    flash(f"Job “{capture.job_address}” created. Start Capture 1 when you are on site.")
+    return redirect(url_for("job_detail", address=capture.job_address))
+
+
+def _job_payload(group: dict[str, Any]) -> dict[str, Any]:
+    """One address group as JSON for ``GET /api/jobs``."""
+    return {
+        "address": group["display_address"],
+        "external_id": group["external_id"],
+        "status": group["latest_status"],
+        "session_count": group["session_count"],
+        "session_kinds": group["kinds"],
+        "has_pdf": group["has_pdf"],
+        "latest_started_at": (
+            group["latest_started_at"].isoformat() if group["latest_started_at"] else None
+        ),
+        "sessions": [s.to_dict() for s in group["sessions"]],
+    }
+
+
+def _upsert_job_row(row: dict[str, Any]) -> tuple[CaptureSession | None, str]:
+    """Upsert one imported job row. Returns ``(session, "created"|"updated"|"skipped")``."""
+    address = str(row.get("address") or "").strip()
+    if not address:
+        return None, "skipped"
+    external_id = str(row.get("external_id") or "").strip()[:120] or None
+    inspection_date = str(row.get("inspection_date") or "").strip()[:32] or None
+    status = str(row.get("status") or "new").strip()[:40] or "new"
+
+    existing: CaptureSession | None = None
+    if external_id:
+        # An id from the sending system is the strongest key: prefer the job's placeholder row,
+        # but fall back to any session carrying that id so the id is never duplicated.
+        candidates = (
+            CaptureSession.query.filter_by(jobdoc_external_id=external_id)
+            .order_by(CaptureSession.id.asc())
+            .all()
+        )
+        existing = next((c for c in candidates if c.session_kind is None), None) or (
+            candidates[0] if candidates else None
+        )
+    if existing is None:
+        key = normalize_job_address(address)
+        existing = next(
+            (
+                s
+                for s in CaptureSession.query.filter(CaptureSession.session_kind.is_(None))
+                .order_by(CaptureSession.id.asc())
+                .all()
+                if normalize_job_address(s.job_address) == key
+            ),
+            None,
+        )
+
+    if existing is not None:
+        existing.job_address = address[:500]
+        if external_id:
+            existing.jobdoc_external_id = external_id
+        if inspection_date:
+            existing.inspection_date = inspection_date
+        # Only a placeholder's status is import-owned. A real capture's status belongs to the
+        # recorder/pipeline, so an import must never knock a live visit back to "new".
+        if existing.session_kind is None:
+            existing.status = status
+        db.session.add(existing)
+        db.session.commit()
+        return existing, "updated"
+
+    capture = _create_placeholder_session(
+        address=address,
+        external_id=external_id,
+        inspection_date=inspection_date,
+        status=status,
+        source="json_import",
+    )
+    return capture, "created"
+
+
+@app.route("/api/jobs", methods=["GET", "POST"])
+def api_jobs():
+    """Import a JSON list of jobs (POST) or read jobs grouped by address (GET).
+
+    Behind the same login gate as ``/api/clients`` — this is an internal integration surface,
+    not a public endpoint.
+    """
+    if request.method == "POST":
+        body = request.get_json(silent=True) or {}
+        if isinstance(body, list):
+            rows = body
+        else:
+            rows = body.get("jobs") if isinstance(body, dict) else None
+        if not isinstance(rows, list):
+            return jsonify({"ok": False, "error": "expected a 'jobs' list"}), 400
+
+        counts = {"created": 0, "updated": 0, "skipped": 0}
+        saved: list[dict[str, Any]] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                counts["skipped"] += 1
+                continue
+            capture, outcome = _upsert_job_row(row)
+            counts[outcome] += 1
+            if capture is not None:
+                saved.append(capture.to_dict())
+        if not saved:
+            return jsonify({"ok": False, "error": "no job row had an address", **counts}), 400
+        return jsonify({"ok": True, **counts, "jobs": saved})
+
+    statuses = _expand_status_filter(request.args.get("status"))
+    try:
+        days = int(request.args.get("days") or 7)
+    except ValueError:
+        days = 7
+    days = max(1, min(14, days))
+    # ``started_at`` is a naive DateTime column holding UTC, so compare against naive UTC.
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
+
+    query = _sessions_for_job_query(statuses).filter(CaptureSession.started_at >= cutoff)
+    groups = _group_sessions_by_address(query.all())
+    return jsonify(
+        {
+            "ok": True,
+            "days": days,
+            "statuses": list(statuses) if statuses else "all",
+            "jobs": [_job_payload(g) for g in groups],
+        }
+    )
+
+
+# -----------------------------------------------------------------------------
+# Export pack — one zip per capture session (PDF + the stills already on disk)
+# -----------------------------------------------------------------------------
+
+
+def _sanitize_for_filename(value: str, fallback: str) -> str:
+    """Filesystem-safe slug for a job address (letters/digits/dash/underscore only)."""
+    out = "".join(ch if (ch.isalnum() or ch in "-_") else "_" for ch in (value or "").strip())
+    while "__" in out:
+        out = out.replace("__", "_")
+    return out.strip("_")[:80] or fallback
+
+
+def _session_frame_dirs(capture: CaptureSession) -> list[Path]:
+    """Existing frame directories for a session — the same store the report pipeline writes."""
+    dirs: list[Path] = []
+    for upload in VideoUpload.query.filter_by(capture_session_id=capture.id).all():
+        candidate = OUTPUT_DIR / "frames" / str(upload.id)
+        if candidate.is_dir():
+            dirs.append(candidate)
+    return dirs
+
+
+def _section_still_window(section_id: str, report_type: str | None) -> tuple[float, float]:
+    """The template-declared still window for a section, falling back to the env global."""
+    from utils.pipeline_config import frame_context_window_seconds
+
+    template = templates_by_type().get(report_type or "")
+    content = template.content_for_section(section_id) if template else None
+    placement = getattr(content, "image_placement", None)
+    if placement is None:
+        return frame_context_window_seconds()
+    return (
+        max(0.0, float(getattr(placement, "still_before_sec", 5.0))),
+        max(0.0, float(getattr(placement, "still_after_sec", 10.0))),
+    )
+
+
+def _add_export_before_frames(capture: CaptureSession) -> int:
+    """Extract one extra "moments before" still per mark, for the export pack only.
+
+    The report itself still shows the frame at the mark. Eric asked for the lead-in shot in the
+    downloadable pack, so this pulls ``still_before_sec`` earlier — skipped when that lands less
+    than half a second from the mark (the two stills would be the same picture). Best effort:
+    a missing video or ffmpeg failure just means the pack has fewer stills.
+    """
+    from utils.video_utils import extract_frame
+
+    summary = SessionSummary.query.filter_by(capture_session_id=capture.id).first()
+    if not summary:
+        return 0
+    reports = (summary.structured_data or {}).get("reports") or {}
+    added = 0
+    for upload in VideoUpload.query.filter_by(capture_session_id=capture.id).all():
+        video_path = UPLOADS_DIR / (upload.stored_filename or "")
+        frames_dir = OUTPUT_DIR / "frames" / str(upload.id)
+        if not video_path.is_file() or not frames_dir.is_dir():
+            continue
+        for report_type, bundle in reports.items():
+            for section in (bundle or {}).get("sections") or []:
+                section_id = str(section.get("section_id") or "")
+                before, _after = _section_still_window(section_id, report_type)
+                for frame in section.get("frames") or []:
+                    try:
+                        at = float(frame.get("image_timestamp_sec") or 0.0)
+                    except (TypeError, ValueError):
+                        continue
+                    lead_in = max(0.0, at - before)
+                    if at - lead_in < 0.5:
+                        continue
+                    out = frames_dir / f"before_{section_id or 'section'}_{lead_in:.2f}.jpg"
+                    if out.is_file():
+                        continue
+                    try:
+                        if extract_frame(video_path, lead_in, out, max_width=1280):
+                            added += 1
+                    except Exception as exc:  # noqa: BLE001 — pack is best effort
+                        logger.debug("export before-frame failed at %.2fs: %s", lead_in, exc)
+    return added
+
+
+def _collect_export_members(capture: CaptureSession) -> list[tuple[str, Path]]:
+    """``(name_in_zip, path_on_disk)`` for the session PDF plus every still already produced."""
+    members: list[tuple[str, Path]] = []
+    if capture.pdf_filename:
+        pdf = OUTPUT_DIR / capture.pdf_filename
+        if pdf.is_file():
+            members.append((pdf.name, pdf))
+    for frames_dir in _session_frame_dirs(capture):
+        for path in sorted(frames_dir.rglob("*")):
+            if path.is_file():
+                members.append((f"stills/{path.relative_to(frames_dir).as_posix()}", path))
+    return members
+
+
+def _session_has_export_pack(capture: CaptureSession) -> bool:
+    """True when a Download pack button would produce something."""
+    if capture.pdf_filename and (OUTPUT_DIR / capture.pdf_filename).is_file():
+        return True
+    return any(any(p.is_file() for p in d.rglob("*")) for d in _session_frame_dirs(capture))
+
+
+def _export_pack_name(capture: CaptureSession) -> str:
+    address_slug = _sanitize_for_filename(capture.job_address, "no_address")
+    # "capture_1" → "1" so the name reads 12_Oak_St_capture_1.zip, not ..._capture_capture_1.zip.
+    kind = (capture.session_kind or "").replace("capture_", "") or str(capture.id)
+    return f"{address_slug}_capture_{_sanitize_for_filename(kind, str(capture.id))}.zip"
+
+
+def _build_session_pack(capture: CaptureSession) -> tuple[io.BytesIO, str] | None:
+    """Zip a session's PDF + stills in memory. ``None`` when the session has neither."""
+    try:
+        _add_export_before_frames(capture)
+    except Exception as exc:  # noqa: BLE001 — never fail a download over the bonus stills
+        logger.debug("export before-frame pass failed for session %s: %s", capture.id, exc)
+
+    members = _collect_export_members(capture)
+    if not members:
+        return None
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+        for name, path in members:
+            bundle.write(path, arcname=name)
+    buffer.seek(0)
+    return buffer, _export_pack_name(capture)
+
+
+@app.route("/jobs/session/<int:session_id>/export.zip")
+def job_session_export(session_id: int):
+    """Download one session's PDF + stills as a single zip (404 when there is nothing yet)."""
+    capture = CaptureSession.query.get_or_404(session_id)
+    pack = _build_session_pack(capture)
+    if pack is None:
+        return jsonify({"ok": False, "error": "No PDF or stills exist for this session yet."}), 404
+    buffer, download_name = pack
+    return send_file(
+        buffer,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=download_name,
+    )
+
+
+@app.route("/jobs/session/<int:session_id>/push", methods=["POST"])
+def job_session_push(session_id: int):
+    """Hand a session's export pack to ``JOBDOC_RECEIVE_URL``. No-op when that is unset."""
+    from utils import jobdoc_push
+
+    capture = CaptureSession.query.get_or_404(session_id)
+    if not jobdoc_push.push_enabled():
+        flash("Push is not configured (JOBDOC_RECEIVE_URL is unset).")
+        return redirect(url_for("job_detail", address=capture.job_address))
+
+    pack = _build_session_pack(capture)
+    if pack is None:
+        flash("Nothing to push yet — this session has no PDF or stills.")
+        return redirect(url_for("job_detail", address=capture.job_address))
+
+    buffer, download_name = pack
+    tmp_path = OUTPUT_DIR / download_name
+    try:
+        tmp_path.write_bytes(buffer.getvalue())
+        result = jobdoc_push.push_session_pack(capture.id, tmp_path)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+    if result.get("ok"):
+        flash("Pack pushed to the receiving system.")
+    else:
+        flash(f"Push did not complete: {result.get('error') or result.get('reason') or 'unknown'}")
+    return redirect(url_for("job_detail", address=capture.job_address))
+
+
+def _reusable_session_for_kind(address: str, session_kind: str) -> CaptureSession | None:
+    """A still-open session of this kind at this address, so Capture 1 twice is one visit."""
+    if not session_kind:
+        return None
+    for s in _sessions_for_address(address):
+        if s.session_kind == session_kind and s.status not in JOB_COMPLETE_STATUSES:
+            return s
+    return None
+
+
 @app.route("/start_session", methods=["POST"])
 def start_session():
     """
@@ -1132,16 +1663,27 @@ def start_session():
     # absent value means the user turned it OFF. On-screen text always shows regardless.
     voice_prompts = (request.form.get("voice_prompts") or "").strip().lower() in ("on", "1", "true", "yes")
 
-    capture = CaptureSession(
-        client_id=client.id,
-        report_type=ordered[0] if ordered else None,
-        job_address=job_address,
-        inspector_name=inspector_name or None,
-        inspection_date=inspection_date or None,
-        weather=weather or None,
-        access_notes=access_notes or None,
-        status="recording",
-    )
+    # Which visit of the job this is, when launched from a /jobs address page.
+    session_kind = (request.form.get("session_kind") or "").strip()
+    if session_kind not in SESSION_KINDS:
+        session_kind = ""
+
+    # Re-launching the same capture for the same address continues that visit instead of
+    # stacking near-identical sessions on the job.
+    capture = _reusable_session_for_kind(job_address, session_kind) if session_kind else None
+    if capture is None:
+        capture = CaptureSession(
+            client_id=client.id,
+            job_address=job_address,
+            session_kind=session_kind or None,
+        )
+    capture.client_id = client.id
+    capture.report_type = ordered[0] if ordered else None
+    capture.inspector_name = inspector_name or None
+    capture.inspection_date = inspection_date or None
+    capture.weather = weather or None
+    capture.access_notes = access_notes or None
+    capture.status = "recording"
     db.session.add(capture)
     db.session.commit()
 
@@ -2693,6 +3235,40 @@ def _protected_recording_filenames() -> set[str]:
         return set()
 
 
+def _protected_session_artifact(path: Path) -> bool:
+    """True when ``path`` is a report PDF or still belonging to a session we must not prune.
+
+    A session that is open (``started`` / ``active``) or finished (``complete`` / ``completed``)
+    still owes Eric a downloadable export pack, so its PDF and stills outlive plain retention.
+    """
+    try:
+        with app.app_context():
+            live = (
+                CaptureSession.query
+                .filter(CaptureSession.status.in_(("complete", "completed", "started", "active")))
+                .with_entities(CaptureSession.id, CaptureSession.pdf_filename)
+                .all()
+            )
+            if not live:
+                return False
+            if path.name in {row[1] for row in live if row[1]}:
+                return True
+            # Stills live in reports_output/frames/<video_upload_id>/…, so map the folder back to
+            # its upload and then to the session that owns it.
+            parents = {p.name for p in path.parents}
+            upload_ids = {
+                str(row[0])
+                for row in VideoUpload.query
+                .filter(VideoUpload.capture_session_id.in_([r[0] for r in live]))
+                .with_entities(VideoUpload.id)
+                .all()
+            }
+            return bool(parents & upload_ids)
+    except Exception as exc:  # noqa: BLE001 — never let a lookup failure delete a deliverable
+        logger.debug("protected session artifact lookup failed for %s: %s", path, exc)
+        return True
+
+
 def _init_app() -> None:
     """
     One-time startup: create DB schema and log the runtime acceleration mode.
@@ -2713,6 +3289,7 @@ def _init_app() -> None:
     maintenance.start_reaper(
         [UPLOADS_DIR, OUTPUT_DIR],
         protected_names_provider=_protected_recording_filenames,
+        is_protected_path=_protected_session_artifact,
     )
 
     # Single, clear production-readiness banner for HF Spaces logs.
