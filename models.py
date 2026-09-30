@@ -30,6 +30,16 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def normalize_job_address(value: str | None) -> str:
+    """Key used to group capture sessions that belong to the same job site.
+
+    Trims, collapses runs of whitespace, and casefolds — for MATCHING ONLY. The original
+    spelling the user typed stays in ``CaptureSession.job_address`` and is what the UI and the
+    PDF display, so "12 Oak St" and "12  oak st " are one job without rewriting either label.
+    """
+    return " ".join(str(value or "").split()).casefold()
+
+
 class Client(db.Model):
     """A client (person or company) that capture sessions are performed for."""
 
@@ -87,6 +97,13 @@ class CaptureSession(db.Model):
     pdf_filename = db.Column(db.String(255), nullable=True)
     started_at = db.Column(db.DateTime, default=_utcnow, nullable=False)
     completed_at = db.Column(db.DateTime, nullable=True)
+    # --- JobDoc shell: address-first jobs without a parent Job table -----------------
+    # A job is simply the set of sessions sharing a normalized ``job_address``. An imported or
+    # hand-typed job starts life as a placeholder session (``session_kind`` NULL) that later
+    # capture visits hang off of.
+    jobdoc_external_id = db.Column(db.String(120), nullable=True, index=True)
+    source = db.Column(db.String(40), nullable=False, default="manual")  # manual | json_import
+    session_kind = db.Column(db.String(40), nullable=True)  # capture_1 | capture_2 | None
 
     client = db.relationship("Client", back_populates="sessions")
     summaries = db.relationship(
@@ -118,6 +135,9 @@ class CaptureSession(db.Model):
             "pdf_filename": self.pdf_filename,
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "jobdoc_external_id": self.jobdoc_external_id,
+            "source": self.source,
+            "session_kind": self.session_kind,
         }
 
 

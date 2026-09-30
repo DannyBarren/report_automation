@@ -34,7 +34,16 @@ from dotenv import load_dotenv
 from flask import Flask, flash, g, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 from sqlalchemy import inspect, text
 
-from models import CaptureSession, Client, JobInfoSummary, MiscData, SessionSummary, VideoUpload, db
+from models import (
+    CaptureSession,
+    Client,
+    JobInfoSummary,
+    MiscData,
+    SessionSummary,
+    VideoUpload,
+    db,
+    normalize_job_address,
+)
 from utils.misc_section import MISC_REPORT_TYPE, misc_report_template
 
 from utils.job_progress import default_pipeline_steps, mark_all_completed, sync_steps_from_progress
@@ -370,6 +379,7 @@ def _ensure_sqlite_schema() -> None:
     try:
         insp = inspect(db.engine)
         cols = {c["name"] for c in insp.get_columns("video_uploads")}
+        session_cols = {c["name"] for c in insp.get_columns("capture_sessions")}
     except Exception:  # noqa: BLE001
         return
     pending: list[str] = []
@@ -377,6 +387,15 @@ def _ensure_sqlite_schema() -> None:
         pending.append("ALTER TABLE video_uploads ADD COLUMN job_meta TEXT")
     if "capture_session_id" not in cols:
         pending.append("ALTER TABLE video_uploads ADD COLUMN capture_session_id INTEGER")
+    # JobDoc shell columns (address-first jobs). Same in-place ALTER pattern as above.
+    if "jobdoc_external_id" not in session_cols:
+        pending.append("ALTER TABLE capture_sessions ADD COLUMN jobdoc_external_id VARCHAR(120)")
+    if "source" not in session_cols:
+        pending.append(
+            "ALTER TABLE capture_sessions ADD COLUMN source VARCHAR(40) NOT NULL DEFAULT 'manual'"
+        )
+    if "session_kind" not in session_cols:
+        pending.append("ALTER TABLE capture_sessions ADD COLUMN session_kind VARCHAR(40)")
     for stmt in pending:
         try:
             with db.engine.begin() as conn:
@@ -1094,6 +1113,211 @@ def api_clients():
     return jsonify({"ok": True, "clients": [c.to_dict() for c in clients]})
 
 
+# -----------------------------------------------------------------------------
+# Jobs by address (JobDoc shell) — a "job" is the set of CaptureSessions that share a
+# normalized ``job_address``. There is deliberately no parent Job table: the placeholder
+# session (``session_kind`` NULL) is the job record, and each visit is its own session.
+# -----------------------------------------------------------------------------
+
+# Statuses that mean "this job still needs work". ``started`` / ``recording`` are the values
+# the recorder writes, and ``partial`` is what the pipeline writes when a run finished without
+# a PDF — all of them are open work, so the default /jobs view shows them.
+JOB_OPEN_STATUSES = ("new", "active", "started", "recording", "partial")
+JOB_COMPLETE_STATUSES = ("complete", "completed")
+# The client every placeholder job is parented to, because ``CaptureSession.client_id`` is
+# NOT NULL and an address-first job has no client yet.
+JOBDOC_PLACEHOLDER_CLIENT = "JobDoc / Unassigned"
+SESSION_KINDS = ("capture_1", "capture_2")
+
+
+def _expand_status_filter(raw: str | None) -> tuple[str, ...] | None:
+    """Turn a ``?status=`` value into the statuses to keep. ``None`` means "no filter".
+
+    ``all`` (or ``*``) disables filtering. ``active`` expands to every value the recorder and
+    pipeline may write for an in-progress visit, so callers never have to know them.
+    """
+    raw = (raw or "").strip().lower()
+    if not raw:
+        return JOB_OPEN_STATUSES
+    if raw in ("all", "*"):
+        return None
+    wanted: list[str] = []
+    for token in raw.split(","):
+        token = token.strip()
+        if not token:
+            continue
+        if token == "active":
+            wanted.extend(("active", "started", "recording"))
+        elif token in ("complete", "completed"):
+            wanted.extend(JOB_COMPLETE_STATUSES)
+        else:
+            wanted.append(token)
+    return tuple(dict.fromkeys(wanted)) or JOB_OPEN_STATUSES
+
+
+def _jobdoc_placeholder_client() -> Client:
+    """Reuse (or create once) the catch-all client that address-first jobs are parented to."""
+    client = Client.query.filter_by(name=JOBDOC_PLACEHOLDER_CLIENT).first()
+    if client:
+        return client
+    client = Client(
+        name=JOBDOC_PLACEHOLDER_CLIENT,
+        notes="Auto-created so address-first JobDoc jobs satisfy CaptureSession.client_id.",
+    )
+    db.session.add(client)
+    db.session.commit()
+    return client
+
+
+def _group_sessions_by_address(sessions: list[CaptureSession]) -> list[dict[str, Any]]:
+    """Group sessions into job cards keyed by normalized address, newest session first.
+
+    Grouping happens in Python (not SQL) because the match key collapses whitespace and
+    casefolds, which no portable SQL expression gives us.
+    """
+    groups: dict[str, dict[str, Any]] = {}
+    for s in sessions:
+        key = normalize_job_address(s.job_address)
+        group = groups.get(key)
+        if group is None:
+            group = groups[key] = {
+                "address_key": key,
+                # First (newest) row wins the display spelling.
+                "address": (s.job_address or "").strip(),
+                "display_address": (s.job_address or "").strip() or "No address",
+                "external_id": None,
+                "sessions": [],
+            }
+        group["sessions"].append(s)
+        if not group["external_id"] and s.jobdoc_external_id:
+            group["external_id"] = s.jobdoc_external_id
+    out = list(groups.values())
+    for group in out:
+        rows = group["sessions"]
+        latest = rows[0]
+        group["session_count"] = len(rows)
+        group["latest_status"] = latest.status
+        group["latest_started_at"] = latest.started_at
+        group["kinds"] = sorted({r.session_kind for r in rows if r.session_kind})
+        group["has_pdf"] = any(r.pdf_filename for r in rows)
+    out.sort(key=lambda g: (g["latest_started_at"] is None, g["latest_started_at"]), reverse=True)
+    return out
+
+
+def _sessions_for_job_query(statuses: tuple[str, ...] | None):
+    query = CaptureSession.query
+    if statuses:
+        query = query.filter(CaptureSession.status.in_(statuses))
+    return query.order_by(CaptureSession.started_at.desc(), CaptureSession.id.desc())
+
+
+def _sessions_for_address(address: str) -> list[CaptureSession]:
+    """Every session at one address, newest first, matched on the normalized address."""
+    key = normalize_job_address(address)
+    rows = (
+        CaptureSession.query
+        .order_by(CaptureSession.started_at.desc(), CaptureSession.id.desc())
+        .all()
+    )
+    return [s for s in rows if normalize_job_address(s.job_address) == key]
+
+
+def _create_placeholder_session(
+    *,
+    address: str,
+    external_id: str | None = None,
+    inspection_date: str | None = None,
+    status: str = "new",
+    source: str = "manual",
+) -> CaptureSession:
+    """Create the job-record session for an address (no recorder, no report type)."""
+    capture = CaptureSession(
+        client_id=_jobdoc_placeholder_client().id,
+        job_address=(address or "").strip()[:500],
+        inspection_date=(inspection_date or "").strip()[:32] or None,
+        status=(status or "new").strip()[:40] or "new",
+        jobdoc_external_id=(external_id or "").strip()[:120] or None,
+        source=source,
+        session_kind=None,
+    )
+    db.session.add(capture)
+    db.session.commit()
+    return capture
+
+
+@app.route("/jobs")
+def jobs_list():
+    """Job board: capture sessions grouped by job address (``?status=all`` includes complete)."""
+    status_arg = request.args.get("status")
+    statuses = _expand_status_filter(status_arg)
+    jobs = _group_sessions_by_address(_sessions_for_job_query(statuses).all())
+    return render_template(
+        "jobs.html",
+        jobs=jobs,
+        status_filter=(status_arg or "").strip().lower(),
+        showing_all=statuses is None,
+    )
+
+
+@app.route("/jobs/<path:address>")
+def job_detail(address: str):
+    """One job site: its capture sessions plus the Capture 1 / Capture 2 launchers."""
+    sessions = _sessions_for_address(address)
+    if not sessions:
+        flash("No job found for that address.")
+        return redirect(url_for("jobs_list"))
+    display_address = next((s.job_address for s in sessions if s.job_address), "") or "No address"
+    external_id = next((s.jobdoc_external_id for s in sessions if s.jobdoc_external_id), None)
+    kinds_open = {
+        s.session_kind: s
+        for s in reversed(sessions)
+        if s.session_kind and s.status not in JOB_COMPLETE_STATUSES
+    }
+    return render_template(
+        "job_detail.html",
+        address=address,
+        display_address=display_address,
+        external_id=external_id,
+        sessions=sessions,
+        kinds_open=kinds_open,
+        reports=load_report_templates(),
+        clients=Client.query.order_by(Client.name.asc()).all(),
+        default_client_id=sessions[0].client_id,
+    )
+
+
+@app.route("/jobs/create", methods=["POST"])
+def jobs_create():
+    """Create a placeholder job from the /jobs form. Never starts the recorder."""
+    address = (request.form.get("address") or "").strip()
+    if not address:
+        flash("A job address is required.")
+        return redirect(url_for("jobs_list"))
+    existing = _sessions_for_address(address)
+    if existing:
+        flash(f"“{address}” already exists — opened it instead of creating a duplicate.")
+        return redirect(url_for("job_detail", address=address))
+    capture = _create_placeholder_session(
+        address=address,
+        external_id=request.form.get("external_id"),
+        inspection_date=request.form.get("inspection_date"),
+        status=request.form.get("status") or "new",
+        source="manual",
+    )
+    flash(f"Job “{capture.job_address}” created. Start Capture 1 when you are on site.")
+    return redirect(url_for("job_detail", address=capture.job_address))
+
+
+def _reusable_session_for_kind(address: str, session_kind: str) -> CaptureSession | None:
+    """A still-open session of this kind at this address, so Capture 1 twice is one visit."""
+    if not session_kind:
+        return None
+    for s in _sessions_for_address(address):
+        if s.session_kind == session_kind and s.status not in JOB_COMPLETE_STATUSES:
+            return s
+    return None
+
+
 @app.route("/start_session", methods=["POST"])
 def start_session():
     """
@@ -1132,16 +1356,27 @@ def start_session():
     # absent value means the user turned it OFF. On-screen text always shows regardless.
     voice_prompts = (request.form.get("voice_prompts") or "").strip().lower() in ("on", "1", "true", "yes")
 
-    capture = CaptureSession(
-        client_id=client.id,
-        report_type=ordered[0] if ordered else None,
-        job_address=job_address,
-        inspector_name=inspector_name or None,
-        inspection_date=inspection_date or None,
-        weather=weather or None,
-        access_notes=access_notes or None,
-        status="recording",
-    )
+    # Which visit of the job this is, when launched from a /jobs address page.
+    session_kind = (request.form.get("session_kind") or "").strip()
+    if session_kind not in SESSION_KINDS:
+        session_kind = ""
+
+    # Re-launching the same capture for the same address continues that visit instead of
+    # stacking near-identical sessions on the job.
+    capture = _reusable_session_for_kind(job_address, session_kind) if session_kind else None
+    if capture is None:
+        capture = CaptureSession(
+            client_id=client.id,
+            job_address=job_address,
+            session_kind=session_kind or None,
+        )
+    capture.client_id = client.id
+    capture.report_type = ordered[0] if ordered else None
+    capture.inspector_name = inspector_name or None
+    capture.inspection_date = inspection_date or None
+    capture.weather = weather or None
+    capture.access_notes = access_notes or None
+    capture.status = "recording"
     db.session.add(capture)
     db.session.commit()
 

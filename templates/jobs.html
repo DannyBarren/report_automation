@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Jobs{% endblock %}
+{% block header_title %}Jobs{% endblock %}
+{% block header_subtitle %}Open work by property address. Each job holds its own capture visits — type an address once, then run Capture 1 and Capture 2 from the job page.{% endblock %}
+{% block wrap_class %} wrap--wide{% endblock %}
+
+{% block head %}
+<style>
+    .section-label {
+        font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+        color: var(--muted); margin: 1.5rem 0 0.75rem;
+    }
+    .field-grid { display: grid; gap: 0.75rem; grid-template-columns: 1fr; }
+    @media (min-width: 620px) { .field-grid.cols-2 { grid-template-columns: 1fr 1fr; } }
+
+    .job-list { display: grid; gap: 0.75rem; grid-template-columns: 1fr; margin-top: 0.5rem; }
+    @media (min-width: 620px) { .job-list { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); } }
+    .job-card {
+        border: 1px solid var(--border); border-radius: var(--radius);
+        background: var(--surface); padding: 0.95rem 1.05rem;
+        text-decoration: none; color: inherit; display: block;
+        transition: border-color 0.15s ease, transform 0.15s ease;
+    }
+    .job-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+    .job-card h3 { margin: 0 0 0.35rem; font-size: 1.05rem; }
+    .job-card .row { font-size: 0.85rem; color: var(--muted); margin: 0.15rem 0; }
+    .job-card .meta { margin-top: 0.6rem; font-size: 0.78rem; color: var(--muted-dim); }
+    .job-card .view-hint { margin-top: 0.6rem; font-size: 0.78rem; color: var(--accent); font-weight: 600; }
+    .badge { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.2rem 0.55rem; border-radius: 999px; white-space: nowrap; }
+    .badge--completed, .badge--complete { background: rgba(16,185,129,0.15); color: #34d399; }
+    .badge--partial { background: rgba(245,158,11,0.15); color: #fbbf24; }
+    .badge--new { background: rgba(37,99,235,0.18); color: #93c5fd; }
+    .badge--started, .badge--recording, .badge--active { background: rgba(148,163,184,0.15); color: #94a3b8; }
+    .job-filter { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    .empty { color: var(--muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;">
+    <p class="section-label" style="margin:0;">{{ 'All jobs' if showing_all else 'Open jobs' }} ({{ jobs|length }})</p>
+    <div class="job-filter">
+        {% if showing_all %}
+        <a class="btn btn-secondary" href="{{ url_for('jobs_list') }}">Open only</a>
+        {% else %}
+        <a class="btn btn-secondary" href="{{ url_for('jobs_list', status='all') }}">Show completed too</a>
+        {% endif %}
+        <a class="btn btn-secondary" href="{{ url_for('index') }}">← Start a capture</a>
+    </div>
+</div>
+
+<input class="input" type="search" id="job-filter" placeholder="Filter by address…" autocomplete="off" style="margin:0.5rem 0 0;">
+
+{% if jobs %}
+<div class="job-list" id="job-list">
+    {% for job in jobs %}
+    <a class="job-card" href="{{ url_for('job_detail', address=job.address) }}" data-search="{{ job.display_address|lower }} {{ (job.external_id or '')|lower }}">
+        <h3>{{ job.display_address }}</h3>
+        <p class="row">
+            <span class="badge badge--{{ job.latest_status }}">{{ job.latest_status }}</span>
+        </p>
+        {% if job.external_id %}<p class="row">ID {{ job.external_id }}</p>{% endif %}
+        {% if job.kinds %}<p class="row">Captures: {{ job.kinds|join(', ')|replace('capture_', '') }}</p>{% endif %}
+        <p class="meta">
+            {{ job.session_count }} session{{ '' if job.session_count == 1 else 's' }}
+            {% if job.latest_started_at %} · last {{ job.latest_started_at.strftime('%b %d, %Y') }}{% endif %}
+            {% if job.has_pdf %} · PDF ready{% endif %}
+        </p>
+        <p class="view-hint">Open job &amp; run captures →</p>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<p class="empty">
+    {% if showing_all %}No jobs yet.{% else %}No open jobs. Create one below, or <a href="{{ url_for('jobs_list', status='all') }}">show completed jobs</a>.{% endif %}
+</p>
+{% endif %}
+
+<p class="section-label">Create a job</p>
+<form method="post" action="{{ url_for('jobs_create') }}" class="card">
+    <label class="field" style="margin:0;">
+        <span class="field-label">Job address <span style="color:var(--accent);">*</span></span>
+        <input class="input" type="text" name="address" placeholder="12 Oak St, Springfield" autocomplete="off" required>
+    </label>
+    <div class="field-grid cols-2" style="margin-top:0.75rem;">
+        <label class="field" style="margin:0;">
+            <span class="field-label">External job ID</span>
+            <input class="input" type="text" name="external_id" placeholder="Optional JobDoc id" autocomplete="off">
+        </label>
+        <label class="field" style="margin:0;">
+            <span class="field-label">Inspection date</span>
+            <input class="input" type="date" name="inspection_date">
+        </label>
+    </div>
+    <div style="margin-top:1rem;">
+        <button type="submit" class="btn">Create job</button>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var filter = document.getElementById('job-filter');
+    var list = document.getElementById('job-list');
+    if (!filter || !list) return;
+    filter.addEventListener('input', function () {
+        var q = filter.value.trim().toLowerCase();
+        list.querySelectorAll('.job-card').forEach(function (card) {
+            var hay = card.getAttribute('data-search') || '';
+            card.style.display = (!q || hay.indexOf(q) >= 0) ? '' : 'none';
+        });
+    });
+})();
+</script>
+{% endblock %}
