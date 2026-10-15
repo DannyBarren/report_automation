@@ -1,99 +1,61 @@
-# License & Terms of Use — GenerSwift / JobDoc (Prototype Demo)
+# STRICT PROPRIETARY LICENSE & TERMS OF USE — GenerSwift / JobDoc / Report Automation
 
-**Copyright © Danny Barren. All rights reserved.**
+**Copyright © Danny Barren. All rights reserved. No rights granted except as expressly set forth herein.**
 
-This document governs all use of the GenerSwift / JobDoc application, source code, prompts,
-templates, designs, and related materials (collectively, the "Software"). It is intentionally
-**not** rendered anywhere in the application UI; only a short notice is shown to users.
+This document is the complete, exclusive, and binding license governing the Software. It supersedes all prior licenses, notices, or understandings.
 
 ---
 
-## 1. Ownership & Intellectual Property
+## 1. Ownership
 
-All right, title, and interest in and to the Software — including but not limited to the source
-code, architecture, prompts, report templates, UI/UX designs, branding, documentation, and all
-derivative works — are the **sole and exclusive intellectual property of Danny Barren** ("Owner").
+All right, title, and interest in and to the Software — including source code, object code, architecture, prompts, templates, schemas, UI/UX, documentation, designs, trademarks, and all derivative works — are the sole and exclusive intellectual property of Danny Barren ("Owner"). No rights are granted except those explicitly stated in this document. All other rights are reserved.
 
-No license, right, or interest in the Software is granted except as expressly stated in this
-document. All rights not expressly granted are reserved by the Owner.
+## 2. Absolute Prohibition on Use Without Written Permission
 
-## 2. Prototype / Demo Status
+**NO PERSON OR ENTITY MAY USE THE SOFTWARE IN ANY CAPACITY, FOR ANY PURPOSE, COMMERCIAL OR NON-COMMERCIAL, WITHOUT THE EXPLICIT, PRIOR, WRITTEN PERMISSION OF DANNY BARREN.**
 
-The Software is a **prototype demonstration only**. It is **not** a production-grade,
-commercially supported, or certified product. It is provided solely for evaluation,
-demonstration, and internal review purposes. It may contain bugs, incomplete features, and
-behaviors that change or break without notice.
+This prohibition is absolute and includes, without limitation:
 
-## 3. No Commercial Use Without Written Consent
+- Viewing, downloading, cloning, forking, copying, or possessing the Software;
+- Running, executing, deploying, hosting, or integrating the Software;
+- Embedding, incorporating, or placing any portion of the Software inside any other product, service, entity, codebase, organization, or system;
+- Using the Software for commercial purposes, revenue generation, client work, production systems, or any business activity;
+- Creating derivative works, modifications, adaptations, or translations;
+- Reverse engineering, decompiling, or extracting any component;
+- Distributing, sublicensing, selling, renting, leasing, or transferring the Software or any rights thereto.
 
-You may **not** use the Software, in whole or in part, for any **commercial purpose**, to
-**generate revenue**, or in any **production / client-facing capacity** without the **explicit,
-prior, written consent** of Danny Barren.
+**Any use, possession, or incorporation of the Software without signed written permission from Danny Barren constitutes unauthorized use and a material breach of this license.**
 
-The Owner may **grant or refuse** such consent at his **sole and absolute discretion**, for any
-reason or no reason. Absent signed written permission from the Owner, all commercial,
-revenue-generating, and production use is **strictly prohibited**.
+The Owner may grant or refuse permission at his sole and absolute discretion, for any reason or no reason, and may impose any conditions. Permission, if granted, must be in a signed writing that specifically identifies the permitted scope, duration, and parties. Oral permission, implied permission, or email acknowledgments are insufficient.
 
-## 4. Restrictions
+## 3. No Embedding or Placement in Other Entities
 
-Without the Owner's prior written consent, you may not:
+The Software may not be placed inside, incorporated into, or used as a component of any other product, service, company, codebase, platform, or entity — whether commercial, open-source, internal, or otherwise — without explicit written permission. This includes "internal tools," "evaluation only," "personal use," or any other characterization.
 
-- Copy, reproduce, distribute, publish, sublicense, sell, rent, or lease the Software;
-- Modify, adapt, translate, or create derivative works from the Software;
-- Reverse engineer, decompile, or disassemble any part of the Software except where such
-  restriction is prohibited by applicable law;
-- Remove, obscure, or alter any copyright, trademark, or proprietary notices;
-- Use the Owner's name, brand, or marks except as strictly necessary to attribute ownership.
+## 4. Prototype / Evaluation Status
 
-## 5. Use At Your Own Risk
+The Software is a prototype demonstration only. It is not a production-grade, commercially supported, or certified product. It may contain defects, incomplete features, and may change or become unavailable without notice.
 
-Your use of the Software is **entirely at your own risk**. You are solely responsible for any
-data you submit, any reports you generate, and any decisions you make based on the Software's
-output. The Software relies on third-party services (e.g., speech-to-text and large-language-model
-providers); the Owner does not control and is not responsible for those services.
+## 5. No Warranties
 
-## 6. No Warranties
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE," WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, ACCURACY, AND NON-INFRINGEMENT. THE OWNER DOES NOT WARRANT UNINTERRUPTED, SECURE, OR ERROR-FREE OPERATION, OR THE ACCURACY OF ANY OUTPUT.
 
-THE SOFTWARE IS PROVIDED **"AS IS" AND "AS AVAILABLE," WITHOUT WARRANTY OF ANY KIND**, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE, TITLE, ACCURACY, AND NON-INFRINGEMENT. THE OWNER DOES NOT WARRANT THAT THE
-SOFTWARE WILL BE UNINTERRUPTED, SECURE, ERROR-FREE, OR THAT ANY OUTPUT WILL BE ACCURATE OR
-RELIABLE.
+## 6. Limitation of Liability
 
-## 7. Limitation of Liability
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, DANNY BARREN SHALL HAVE NO LIABILITY WHATSOEVER FOR ANY DAMAGES, LOSSES, OR CLAIMS ARISING FROM THE SOFTWARE, INCLUDING INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, LOSS OF PROFITS, DATA, OR BUSINESS. TOTAL AGGREGATE LIABILITY SHALL NOT EXCEED USD $0.
 
-TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT SHALL DANNY BARREN BE LIABLE FOR ANY
-INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, OR FOR ANY LOSS OF
-PROFITS, REVENUE, DATA, GOODWILL, OR BUSINESS, ARISING OUT OF OR RELATED TO YOUR USE OF (OR
-INABILITY TO USE) THE SOFTWARE, WHETHER IN CONTRACT, TORT, OR OTHERWISE, EVEN IF ADVISED OF THE
-POSSIBILITY OF SUCH DAMAGES. THE OWNER'S TOTAL AGGREGATE LIABILITY SHALL NOT EXCEED **USD $0**.
+## 7. Termination and Remedies
 
-## 8. Data, Sessions & Privacy
+Any unauthorized use immediately terminates any rights (if any were ever granted) and entitles the Owner to all available legal remedies, including injunctive relief, damages, and recovery of attorneys' fees. The Owner may modify, suspend, or terminate access at any time without notice or liability.
 
-The Software may process uploaded media, transcripts, and notes solely to produce a report during
-a session. Sessions and stored artifacts are **temporary** and may be **deleted automatically**
-at any time (e.g., by automated cleanup) without notice. Do not upload confidential, sensitive,
-regulated, or personally identifying information. API keys entered in the UI are held only for the
-duration of the relevant request/session and are the responsibility of the user who provides them.
+## 8. Governing Law
 
-## 9. Access & Termination
+These terms are governed by the laws of the State of Ohio, without regard to conflict-of-laws principles. Any dispute shall be resolved exclusively in the state or federal courts located in Franklin County, Ohio.
 
-Access is gated and provided at the Owner's discretion. The Owner may modify, suspend, or
-**terminate** access to the Software, in whole or in part, at any time and without notice or
-liability.
+## 9. Entire Agreement
 
-## 10. Agreement
-
-By signing in to or otherwise using the Software, you acknowledge that you have read, understood,
-and **agree to be bound by these full terms**. The full terms are available **on request from
-Danny Barren**. If you do not agree, do not sign in or use the Software.
-
-## 11. Governing Terms
-
-These terms constitute the entire agreement regarding the Software and supersede any prior
-understandings. If any provision is held unenforceable, the remaining provisions remain in full
-force. Failure to enforce any provision is not a waiver.
+This document constitutes the entire agreement regarding the Software and supersedes all prior or contemporaneous communications. If any provision is held unenforceable, the remainder remains in full force. Failure to enforce any provision is not a waiver.
 
 ---
 
-**For permissions, commercial licensing, or full terms, contact Danny Barren.**
+**For any permission, commercial licensing, or inquiries, contact Danny Barren in writing. Absent a signed written instrument from Danny Barren specifically authorizing a defined use, all use is prohibited.**
