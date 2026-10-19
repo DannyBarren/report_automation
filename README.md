@@ -19,22 +19,148 @@ short_description: GenerSwift — record a narrated walkthrough → structured P
 
 **Record a narrated walkthrough on your phone → get a professional, structured PDF report.**
 
-JobDoc is a mobile-first tool for tradespeople, inspectors, and realty/compliance pros. On
-site, you record a short guided video, say **“Mark this.”** (or tap **MARK THIS SECTION**) at
-each finding, and describe what you see. JobDoc turns that into a clean PDF with still frames
-and section-by-section narratives.
+## Problem
 
-### How it works (and why it's reliable)
+Inspectors and tradespeople need a structured PDF from an on-site walkthrough without a
+laptop workflow and without computer vision. Findings have to be auditable: each photo and
+paragraph should trace to a spoken cue or an explicit **MARK** tap, not to a model inventing
+damage from pixels.
 
-- **Speech-to-text with precise timestamps** — [Deepgram Nova-3](https://deepgram.com/) gives
-  accurate word timing and dependable **“Mark this.”** cue detection.
-- **Frontier-LLM reasoning** — [OpenAI](https://openai.com/) (via CrewAI)
-  reads your narration against rich JSON report templates and writes the report.
-- **Zero computer vision.** Findings come from what you *say*, not from image models. This is
-  what makes JobDoc practical, predictable, and cost-effective for trades.
-- **GPU is used only to accelerate the local media pipeline** — hardware video decode/encode
-  and still-frame extraction (ffmpeg NVDEC/NVENC), plus an optional local Whisper STT backend.
-  The AI reasoning stays cloud-based.
+JobDoc is a mobile-first capture → transcript → match → PDF pipeline. You record a short
+guided video, say **“Mark this.”** (or tap **MARK THIS SECTION**) at each finding, and narrate
+what you see. Speech-to-text timestamps, deterministic section matching, optional LLM drafting
+with reconcile-against-transcript, ffmpeg stills, and WeasyPrint produce the report.
+
+- **Speech-to-text with timestamps** — [Deepgram Nova-3](https://deepgram.com/) (optional local Whisper).
+- **Frontier-LLM drafting** — [OpenAI](https://openai.com/) via CrewAI, reconciled against matched narration.
+- **Zero computer vision.** Findings come from what you *say* and which timestamps you mark.
+- **GPU is optional** and used only for the local media pipeline (ffmpeg NVDEC/NVENC, still
+  frames, optional Whisper). Reasoning stays cloud-based.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph capture [On-device capture]
+    Rec[Browser MediaRecorder]
+    Marks["MARK taps + spoken Mark this."]
+  end
+  subgraph flask [Flask app]
+    Auth[Shared-credential login]
+    Upload[Upload + job JSON]
+  end
+  subgraph pipeline [Report pipeline]
+    STT[Deepgram Nova-3]
+    Match[Deterministic section matching]
+    LLM[CrewAI / OpenAI writer]
+    Reco[Reconcile writer vs matched]
+    Frames[ffmpeg still frames]
+    PDF[WeasyPrint PDF]
+  end
+  Rec --> Auth
+  Marks --> Upload
+  Auth --> Upload
+  Upload --> STT
+  STT --> Match
+  Match --> LLM
+  LLM --> Reco
+  Match --> Reco
+  Reco --> Frames
+  Frames --> PDF
+```
+
+Report templates in `reports/*.json` are the single source of truth for the recorder script,
+matcher, and PDF layout.
+
+## How to run
+
+**Local (explicit dev flag — do not use in production):**
+
+```bash
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt              # add --extra-index-url https://download.pytorch.org/whl/cu121 for GPU torch
+pip install -r requirements-dev.txt          # ruff + pytest + Flask (auth tests)
+cp .env.example .env   # then set SECRET_KEY, JOBDOC_AUTH_USER, JOBDOC_AUTH_PASSWORD
+export JOBDOC_DEV=1
+export JOBDOC_PIPELINE=v2
+export JOBDOC_COOKIE_INSECURE=1
+python app.py          # http://127.0.0.1:7860  (override with PORT=...)
+```
+
+`JOBDOC_DEV=1` allows an ephemeral `SECRET_KEY` and turns the login gate off when auth
+variables are unset. Prefer filling `.env` even locally. `./run_demo.sh` exports the same
+dev/cookie/pipeline flags.
+
+**Tests / lint:**
+
+```bash
+ruff check .
+pytest -m auth         # login required + missing env refuses start
+```
+
+GitHub Actions runs those two commands on every push/PR. Full pipeline tests under `tests/`
+need the heavier runtime extras (ffmpeg, WeasyPrint, CrewAI) and are not claimed as CI coverage.
+
+**Production-like process:** omit `JOBDOC_DEV`. The process **exits on startup** unless
+`SECRET_KEY`, `JOBDOC_AUTH_USER`, and `JOBDOC_AUTH_PASSWORD` are set (or
+`JOBDOC_AUTH_DISABLE=1` on a trusted private deploy). Docker:
+
+```bash
+docker build -t jobdoc .
+docker run --rm -p 7860:7860 \
+  -e SECRET_KEY=... \
+  -e JOBDOC_AUTH_USER=... \
+  -e JOBDOC_AUTH_PASSWORD=... \
+  -e DEEPGRAM_API_KEY=... -e OPENAI_API_KEY=... \
+  jobdoc
+```
+
+System libs for PDF + media (local, not Docker):
+
+- Debian/Ubuntu: `sudo apt install ffmpeg libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf-2.0-0`
+- macOS: `brew install ffmpeg pango gdk-pixbuf libffi`
+
+If you have a local CUDA GPU + CUDA-enabled ffmpeg, GPU detection works locally. Force CPU
+mode with `JOBDOC_DISABLE_GPU=1`.
+
+## Security model
+
+- **Fail closed.** Outside `JOBDOC_DEV=1`, missing `SECRET_KEY` or missing shared-login
+  credentials abort startup with a clear error. There is no compiled-in default password and
+  no default Flask secret.
+- **Shared-credential gate**, not user accounts. One username/password from
+  `JOBDOC_AUTH_USER` / `JOBDOC_AUTH_PASSWORD`. Comparison uses `hmac.compare_digest`.
+  `JOBDOC_AUTH_DISABLE=1` turns the gate off (trusted private deploys only).
+- **Session cookies:** HTTP-only, `SameSite=Lax`, `Secure` unless `JOBDOC_COOKIE_INSECURE=1`
+  or `FLASK_DEBUG` (local HTTP). Direct `python app.py` also drops `Secure` so login sticks on
+  `http://127.0.0.1`.
+- **Public without login:** `/login`, `/logout`, `/health`, `/metrics`, static, PWA files.
+  Health/metrics report key *presence* and disk/uptime, never secret values.
+- **Provider keys:** Deepgram/OpenAI from env (Space/Modal secrets) or a per-browser paste
+  stored server-side, keyed by a random session token — never in the cookie. Applied to
+  process `os.environ` only for the duration of a generate request.
+- **Rotate anything previously committed.** A prior default login password lived in source and
+  docs; it is removed here but **remains in git history**. Treat it as compromised wherever it
+  was reused. History purge is an owner decision (filter-repo / GitHub support), not part of
+  this change.
+
+## Known limitations
+
+- Single shared login; no per-user identity, lockout, or password hashing beyond the env secret.
+- `/health` and `/metrics` are unauthenticated by design (ops probes).
+- Per-session API keys sit on process-global `os.environ` during generate (serialized by a
+  lock). Concurrent *other* threads can observe the generating user's key for that window.
+- `JOBDOC_DEV=1` without auth env vars disables the login gate — never set that flag in a
+  hosted environment.
+- In-browser recording requires **HTTPS**; `http://localhost` camera capture will not work.
+- WeasyPrint needs OS libraries (image/Docker provide them; a bare venv may not).
+- GPU acceleration is best-effort; CPU fallback is the supported path.
+- `modal_app.py` is an optional leftover deploy wrapper; Hugging Face Docker (`Dockerfile` +
+  `start.sh`) is the wired target.
+- `pinggy.ps1` at the repo root is a saved Pinggy marketing HTML page (not a tunnel script).
+  Left in place; it is not part of the app.
+- This is a prototype demo, not a multi-tenant production control plane. No performance,
+  accuracy, or uptime figures are claimed here.
 
 ---
 
@@ -65,15 +191,16 @@ JobDoc ships a single Docker image that runs correctly on **both CPU-only and GP
    preferences. Surfaced via `/health` and `/metrics` without exposing key material.
 
 4. **Set a session secret** — set `SECRET_KEY` as a Space secret (any long random string) so login
-   cookies are signed with a stable, private key across restarts.
+   cookies are signed with a stable, private key across restarts. The app will **not start**
+   without it (unless `JOBDOC_DEV=1`, which must never be set on a Space).
 
 ### Access control (login)
 
 The hosted Space is gated by a simple shared-credential login so only authorized users can run
 reports. There is no user database — it's basic access control, not user management.
 
-- **Default credentials:** username `***REMOVED***` / password `***REMOVED***`
-- **Change them** with Space secrets `JOBDOC_AUTH_USER` and `JOBDOC_AUTH_PASSWORD`.
+- **Required Space secrets:** `JOBDOC_AUTH_USER` and `JOBDOC_AUTH_PASSWORD` (see `.env.example`).
+  There is no default password in source or docs.
 - **Disable the gate** entirely (e.g. trusted private deploy) with `JOBDOC_AUTH_DISABLE=1`.
 - Users sign in once per browser (a signed, HTTP-only, `Secure` cookie lasts 7 days) and can
   **Sign out** from the header. The immersive recording flow is never interrupted by login.
@@ -157,7 +284,7 @@ A one-page checklist to push and launch on Hugging Face Spaces (GPU or CPU).
 **2 · Configure secrets (Settings → Variables and secrets)**
 - [ ] `SECRET_KEY` — long random string (stable login-cookie signing).
 - [ ] `DEEPGRAM_API_KEY` + `OPENAI_API_KEY` — recommended for a hosted demo (or let users paste in UI).
-- [ ] `JOBDOC_AUTH_USER` / `JOBDOC_AUTH_PASSWORD` — change from the defaults (`***REMOVED***` / `***REMOVED***`).
+- [ ] `JOBDOC_AUTH_USER` / `JOBDOC_AUTH_PASSWORD` — required; the process refuses to start if they are unset (unless `JOBDOC_AUTH_DISABLE=1`).
 - [ ] (Optional) `JOBDOC_PIPELINE=v2`, `JOBDOC_RETENTION_HOURS`, `JOBDOC_RATELIMIT_*`, `JOBDOC_MAX_VIDEO_SEC`.
 
 **3 · Verify after build**
@@ -180,29 +307,9 @@ A one-page checklist to push and launch on Hugging Face Spaces (GPU or CPU).
 
 ## Local development
 
-```bash
-python3.11 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt              # add --extra-index-url https://download.pytorch.org/whl/cu121 for GPU torch
-# System libs for PDF + media:
-#   Debian/Ubuntu: sudo apt install ffmpeg libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf-2.0-0
-#   macOS:         brew install ffmpeg pango gdk-pixbuf libffi
-export JOBDOC_PIPELINE=v2
-export JOBDOC_COOKIE_INSECURE=1
-python app.py        # serves on http://0.0.0.0:7860  (override with PORT=...)
-```
-
-If you have a local CUDA GPU + CUDA-enabled ffmpeg, GPU detection works locally too. Force CPU
-mode with `JOBDOC_DISABLE_GPU=1` to mirror a CPU-only Space.
-
-To run the exact production container locally:
-
-```bash
-docker build -t jobdoc .
-docker run --rm -p 7860:7860 \
-  -e DEEPGRAM_API_KEY=... -e OPENAI_API_KEY=... \
-  jobdoc
-# GPU (needs nvidia-container-toolkit):  add  --gpus all
-```
+See [How to run](#how-to-run) for the current command set (`.env.example`, `JOBDOC_DEV`,
+auth env vars, tests). `./run_demo.sh` exports `JOBDOC_DEV=1`, `JOBDOC_PIPELINE=v2`, and
+`JOBDOC_COOKIE_INSECURE=1`.
 
 ---
 
@@ -339,10 +446,11 @@ like `voice_prompt`, `on_screen_text`, `required`, and `pdf_styling`.
 | `JOBDOC_RATELIMIT_GENERATE`      | Max `/generate_report` requests per IP per 10 min (default `20`).       |
 | `JOBDOC_RATELIMIT_DISABLE`       | `1` disables in-memory rate limiting (e.g. trusted internal deploys).   |
 | `JOBDOC_MAX_UPLOAD_MB`           | Max upload size in MB (default `500`); larger uploads get a friendly 413. |
-| `SECRET_KEY`                     | Flask session signing key — **set in production** (random string).      |
-| `JOBDOC_AUTH_USER`               | Login username (default `***REMOVED***`).                                      |
-| `JOBDOC_AUTH_PASSWORD`           | Login password (default `***REMOVED***`).                           |
+| `SECRET_KEY`                     | Flask session signing key — **required** (no default).                  |
+| `JOBDOC_AUTH_USER`               | Login username — **required** when the gate is on.                      |
+| `JOBDOC_AUTH_PASSWORD`           | Login password — **required** when the gate is on.                      |
 | `JOBDOC_AUTH_DISABLE`            | `1` disables the login gate (trusted/private deploys).                  |
+| `JOBDOC_DEV`                     | `1` local-dev only: ephemeral SECRET_KEY; login off if auth env unset.  |
 | `JOBDOC_COOKIE_INSECURE`         | `1` drops the `Secure` cookie flag for local HTTP dev only.             |
 | `JOBDOC_LOG_JSON`                | `1` (default) structured JSON logs · `0` plain text for local dev.      |
 
@@ -370,6 +478,10 @@ GPU/ffmpeg acceleration status.
 | Path                       | Role                                                                |
 | -------------------------- | ------------------------------------------------------------------- |
 | `app.py`                   | Flask app (routes, upload, generate, health, keys). Binds 7860.     |
+| `utils/runtime_secrets.py` | Fail-closed SECRET_KEY + login credentials from the environment.    |
+| `utils/auth_gate.py`       | Shared-credential session gate (constant-time compare).             |
+| `.env.example`             | Names of required/optional env vars (no secret values).             |
+| `.github/workflows/ci.yml` | Ruff + auth pytest.                                                 |
 | `utils/gpu_utils.py`       | **Runtime-only** GPU detection + hardware ffmpeg command builders.  |
 | `utils/video_utils.py`     | Normalize / audio / frame extraction with GPU→CPU fallback.         |
 | `utils/transcription.py`   | Deepgram Nova-3 (default) + optional local faster-whisper backend.  |

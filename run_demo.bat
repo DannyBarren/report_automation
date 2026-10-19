@@ -87,7 +87,7 @@ echo   (B) Portable extract — NO admin (default, trying now)
 echo       Extracts DLLs with 7-Zip or py7zr into gtk3\runtime.
 echo       Install 7-Zip from https://www.7-zip.org/ if extract fails.
 echo.
-echo   After the app starts: http://127.0.0.1:5000/setup/weasyprint
+echo   After the app starts: http://127.0.0.1:7860/setup/weasyprint
 echo  --------------------------------------------------------
 echo.
 
@@ -121,18 +121,23 @@ echo.
 echo        Next steps:
 echo          1. Right-click run_demo.bat -^> Run as administrator, run again
 echo          2. Or install 7-Zip and run again (portable extract)
-echo          3. Open http://127.0.0.1:5000/setup/weasyprint in your browser
+echo          3. Open http://127.0.0.1:7860/setup/weasyprint in your browser
 echo.
 
 :apply_gtk_env
 for /f "usebackq delims=" %%L in (`python -m utils.setup_weasyprint --emit-env 2^>nul`) do %%L
 
+REM Local-only: ephemeral SECRET_KEY; login off if JOBDOC_AUTH_* unset. Never set in production.
+set JOBDOC_DEV=1
+set JOBDOC_PIPELINE=v2
+set JOBDOC_COOKIE_INSECURE=1
+
 REM --- Launch Flask ---
 echo.
-echo [4/4] Starting GenerSwift on http://127.0.0.1:5000
-echo       PDF setup help: http://127.0.0.1:5000/setup/weasyprint
-echo       Health check:   http://127.0.0.1:5000/health
-echo       On your phone (same Wi-Fi): http://YOUR-PC-IP:5000
+echo [4/4] Starting GenerSwift on http://127.0.0.1:7860
+echo       PDF setup help: http://127.0.0.1:7860/setup/weasyprint
+echo       Health check:   http://127.0.0.1:7860/health
+echo       On your phone (same Wi-Fi): http://YOUR-PC-IP:7860
 echo       Press Ctrl+C to stop.
 echo.
 

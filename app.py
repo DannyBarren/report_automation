@@ -55,6 +55,12 @@ from utils.setup_weasyprint import (
 )
 from crew.report_resilience import merge_review_notes
 from utils.runtime_config import require_asr_credentials, require_crew_llm_credentials
+from utils.runtime_secrets import load_runtime_secrets
+from utils.auth_gate import (
+    check_credentials,
+    enforce_login_request,
+    request_wants_json,
+)
 from utils.schemas import FinalReportOutput, ReportTemplate
 from utils.video_utils import probe_duration_seconds, try_extract_audio
 from utils import gpu_utils
@@ -139,8 +145,12 @@ ensure_runtime_directories()
 # Flask + database
 # -----------------------------------------------------------------------------
 
+# Fail closed: SECRET_KEY + login credentials come from the environment (see .env.example).
+# JOBDOC_DEV=1 is the only escape hatch for local runs without those variables.
+_runtime_secrets = load_runtime_secrets()
+
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "***REMOVED***")
+app.config["SECRET_KEY"] = _runtime_secrets.secret_key
 app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("JOBDOC_MAX_UPLOAD_MB", "500")) * 1024 * 1024
@@ -274,48 +284,30 @@ def rate_limited(bucket: str):
 # -----------------------------------------------------------------------------
 # Simple session-based access control (gate the public demo Space)
 # -----------------------------------------------------------------------------
-# Single shared credential — this is basic access control for a hosted demo, not a user
-# management system. Override the defaults with JOBDOC_AUTH_USER / JOBDOC_AUTH_PASSWORD,
-# or disable the gate entirely with JOBDOC_AUTH_DISABLE=1 (e.g. trusted private deploys).
-import hmac  # noqa: E402 — grouped with the auth helpers it supports
-
-_AUTH_USER = os.environ.get("JOBDOC_AUTH_USER", "***REMOVED***")
-_AUTH_PASSWORD = os.environ.get("JOBDOC_AUTH_PASSWORD", "***REMOVED***")
-
-# Endpoints reachable without a session (login itself, static assets, PWA files, and the
-# non-sensitive monitoring probes so uptime checks keep working behind the gate).
-_PUBLIC_ENDPOINTS = {
-    "login", "logout", "static", "health", "metrics", "service_worker", "web_manifest",
-}
+# Single shared credential from the environment — basic access control for a hosted
+# demo, not a user-management system. Required: JOBDOC_AUTH_USER / JOBDOC_AUTH_PASSWORD.
+# Disable the gate on a trusted private deploy with JOBDOC_AUTH_DISABLE=1.
+# Local-only: JOBDOC_DEV=1 allows boot without those variables (gate off if unset).
 
 
 def _auth_enabled() -> bool:
-    return os.environ.get("JOBDOC_AUTH_DISABLE", "").strip() not in ("1", "true", "yes")
+    return _runtime_secrets.auth_enabled
 
 
 def _check_credentials(username: str, password: str) -> bool:
     """Constant-time credential check (avoids trivial timing leaks)."""
-    user_ok = hmac.compare_digest(username or "", _AUTH_USER)
-    pass_ok = hmac.compare_digest(password or "", _AUTH_PASSWORD)
-    return user_ok and pass_ok
+    return check_credentials(
+        username,
+        password,
+        _runtime_secrets.auth_user,
+        _runtime_secrets.auth_password,
+    )
 
 
 @app.before_request
 def _enforce_login():
     """Redirect unauthenticated users to the login page (JSON 401 for API/SPA callers)."""
-    if not _auth_enabled():
-        return None
-    if (request.endpoint or "") in _PUBLIC_ENDPOINTS:
-        return None
-    if session.get("authed"):
-        return None
-    if _wants_json():
-        return jsonify({
-            "ok": False,
-            "error": "Please sign in to continue.",
-            "login_url": url_for("login"),
-        }), 401
-    return redirect(url_for("login", next=request.full_path if request.query_string else request.path))
+    return enforce_login_request(auth_enabled=_auth_enabled(), wants_json=_wants_json())
 
 
 @app.context_processor
@@ -837,12 +829,7 @@ def request_entity_too_large(_exc: Exception) -> tuple[Any, int]:
 
 def _wants_json() -> bool:
     """True when the caller is the SPA recorder/JS or explicitly wants JSON."""
-    return (
-        request.headers.get("X-JobDoc-Client") == "1"
-        or request.is_json
-        or request.path.startswith("/api/")
-        or "application/json" in (request.headers.get("Accept", ""))
-    )
+    return request_wants_json()
 
 
 def _error_response(code: int, title: str, message: str):

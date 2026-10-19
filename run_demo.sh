@@ -21,8 +21,10 @@ python -m pip install -q --upgrade pip
 python -m pip install -q -r requirements.txt
 
 # Live demo path: v2 matching (MARK taps + spoken cues) and HTTP-safe login cookies.
+# JOBDOC_DEV=1 is local-only: ephemeral SECRET_KEY and login-off if auth env is unset.
+export JOBDOC_DEV=1
 export JOBDOC_PIPELINE=v2
 export JOBDOC_COOKIE_INSECURE=1
 
-echo "Starting jobdoc-demo on http://0.0.0.0:${PORT:-7860} (pipeline=v2, insecure cookies) ..."
+echo "Starting jobdoc-demo on http://0.0.0.0:${PORT:-7860} (JOBDOC_DEV=1, pipeline=v2, insecure cookies) ..."
 exec python app.py
