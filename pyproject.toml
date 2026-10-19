@@ -1,0 +1,19 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+extend-exclude = [".venv", "instance", "uploads", "reports_output"]
+
+[tool.ruff.lint]
+select = ["E", "F"]
+# Pre-existing unused re-exports / locals in crew and template helpers. New code
+# should still avoid these; CI uses this ignore set so ruff is fail-closed on syntax
+# and undefined names (F821+) across the tree.
+ignore = ["E501", "E402", "F401", "F841", "F541", "F601"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+markers = [
+    "auth: login gate and fail-closed runtime secrets",
+]

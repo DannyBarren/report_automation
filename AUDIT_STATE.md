@@ -392,7 +392,7 @@ README claim: “there are no demo, sample-video, or test shortcuts” (`README.
 - `DEMO_SCRIPT.md:10-34` — port **5000**, “Start quick demo”, “People + Room pre-selected” — **none of that exists**. App binds **7860** (`app.py:2698`). Only roofing template exists.
 - `pinggy.ps1` (78k, May 2026) — leftover tunnel script at repo root.
 - `modal_app.py` — leftover Modal deploy module (not in the UI).
-- README still documents default login `***REMOVED***` / `***REMOVED***` (`README.md:75`).
+- README previously documented a default shared-login password (removed — set `JOBDOC_AUTH_USER` / `JOBDOC_AUTH_PASSWORD`; see `.env.example`) (`README.md:75`).
 
 ---
 
@@ -439,7 +439,7 @@ Roofing template: `include_timestamps: true`, `include_narration_in_caption: tru
 Defaults **hardcoded** (`app.py:270-271`):
 
 - `JOBDOC_AUTH_USER` default `***REMOVED***`
-- `JOBDOC_AUTH_PASSWORD` default `***REMOVED***`
+- `JOBDOC_AUTH_PASSWORD` default was a hardcoded shared password (removed — set via env; see `.env.example`)
 
 Same defaults in `README.md:75`. Override via those env vars. `JOBDOC_AUTH_DISABLE=1|true|yes` disables (`app.py:280-281`). Login: `app.py:887-905`. Logout clears session keys (`app.py:908-915`).
 

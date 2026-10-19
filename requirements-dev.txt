@@ -1,0 +1,4 @@
+# Lint + test tools. Auth/boot tests need Flask; they do not install torch/CrewAI.
+-r requirements-ci.txt
+ruff==0.17.1
+pytest==8.4.2
