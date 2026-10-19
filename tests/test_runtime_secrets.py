@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from utils.runtime_secrets import load_runtime_secrets
 
 pytestmark = pytest.mark.auth
 
-APP_PY = Path(__file__).resolve().parent.parent / "app.py"
+APP_PY = ROOT / "app.py"
 
 
 def test_missing_secret_key_refuses_start() -> None:

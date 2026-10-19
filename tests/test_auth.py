@@ -2,8 +2,15 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import pytest
 from flask import Flask, session
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from utils.auth_gate import check_credentials, enforce_login_request, request_wants_json
 from utils.runtime_secrets import load_runtime_secrets

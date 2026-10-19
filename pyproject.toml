@@ -11,6 +11,7 @@ select = ["E", "F"]
 ignore = ["E501", "E402", "F401", "F841", "F541", "F601"]
 
 [tool.pytest.ini_options]
+pythonpath = ["."]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 markers = [

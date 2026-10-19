@@ -19,4 +19,4 @@ jobs:
       - name: Ruff
         run: ruff check .
       - name: Auth and boot tests
-        run: pytest tests/test_auth.py tests/test_runtime_secrets.py -q --strict-markers
+        run: python -m pytest tests/test_auth.py tests/test_runtime_secrets.py -q --strict-markers
